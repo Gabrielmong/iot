@@ -16,14 +16,23 @@ export function shellCommandLine(cmd: string, args: string[]): string {
   return parts.map((p) => `"${p}"`).join(' ');
 }
 
-/** On Windows child.kill() leaves grandchildren (cmd.exe → pnpm → node) running; taskkill /T takes the tree. */
+/**
+ * child.kill() leaves grandchildren (cmd.exe → pnpm → node) running. Windows: taskkill /T takes the tree.
+ * Elsewhere the child leads its own process group (spawnChild), so signalling -pid takes the group.
+ */
 function killTree(child: ChildProcess): void {
-  if (process.platform === 'win32' && child.pid !== undefined) {
+  if (child.pid === undefined) {
+    child.kill();
+  } else if (process.platform === 'win32') {
     spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' }).on('error', () =>
       child.kill(),
     );
   } else {
-    child.kill();
+    try {
+      process.kill(-child.pid, 'SIGKILL');
+    } catch {
+      child.kill('SIGKILL');
+    }
   }
 }
 
@@ -32,6 +41,8 @@ function spawnChild(cmd: string, args: string[], opts: RunOptions): ChildProcess
     cwd: opts.cwd,
     env: opts.env ? { ...process.env, ...opts.env } : process.env,
     windowsHide: true,
+    // POSIX: its own process group, so a timeout can kill grandchildren too. (On Windows it would open a console.)
+    detached: process.platform !== 'win32',
   };
   if (needsShell(cmd)) return spawn(shellCommandLine(cmd, args), { ...common, shell: true });
   return spawn(cmd, args, { ...common, shell: false });
