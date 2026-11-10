@@ -1,0 +1,9 @@
+node_modules
+dist
+.env
+.superpowers/
+apps/web/src/gql/
+scripts/golden/.venv/
+apps/server/src/generated/
+logs/
+tools/

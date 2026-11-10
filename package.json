@@ -1,0 +1,17 @@
+{
+  "name": "home",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "pnpm -r test",
+    "build": "pnpm --filter @home/protocols build && pnpm --filter @home/server build && pnpm --filter @home/web build && pnpm --filter @home/deployer build",
+    "db:deploy": "pnpm --filter @home/server exec prisma migrate deploy",
+    "start": "cross-env NODE_ENV=production node apps/server/dist/main.js",
+    "dev": "concurrently -n server,web \"pnpm --filter @home/server dev\" \"pnpm --filter @home/web dev\""
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.6",
+    "cross-env": "^10.1.0",
+    "typescript": "^7.0.2"
+  }
+}

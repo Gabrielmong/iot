@@ -1,0 +1,85 @@
+<h2>Device details page — first sketch</h2>
+<p class="subtitle">Opened by tapping a tile (or its own link, e.g. /devices/desk-strip). Left: light page. Right: camera page. Rough on purpose — tell me what's off.</p>
+
+<style>
+  .pg{background:#14161c;color:#e6e8ee;border-radius:10px;padding:14px;font:13px system-ui,sans-serif}
+  .hd{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+  .hd .back{color:#8a90a0}
+  .hd h3{margin:0;font-size:18px;color:#fff}
+  .chip{font-size:10px;padding:2px 7px;border-radius:10px;background:#232733;color:#9aa0ad}
+  .chip.ok{background:#173a26;color:#5fd38d}
+  .chip.cloud{background:#3a2f12;color:#f0c35a}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .card{background:#1b1e26;border-radius:8px;padding:12px}
+  .lbl{color:#8a90a0;font-size:10px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+  .preview{height:170px;display:flex;align-items:center;justify-content:center;position:relative}
+  .bulb{width:86px;height:86px;border-radius:50%;background:#9b59ff;box-shadow:0 0 50px 18px rgba(155,89,255,.55);opacity:.8}
+  .base{position:absolute;bottom:22px;width:34px;height:22px;background:#5a5f6e;border-radius:3px}
+  .row{display:flex;justify-content:space-between;align-items:center;margin:8px 0}
+  .bar{height:6px;border-radius:3px;background:#2a2e3a;position:relative;flex:1;margin-left:10px}
+  .bar i{position:absolute;left:0;top:0;bottom:0;border-radius:3px;background:#9b59ff}
+  .hue{height:10px;border-radius:5px;background:linear-gradient(90deg,red,#ff0,lime,cyan,blue,#f0f,red)}
+  .temp{height:10px;border-radius:5px;background:linear-gradient(90deg,#ffb15a,#fff,#cfe2ff)}
+  .sw{display:inline-block;width:18px;height:18px;border-radius:50%;margin-right:4px;border:2px solid transparent}
+  .sw.on{border-color:#fff}
+  .tog{width:34px;height:18px;border-radius:9px;background:#5fd38d;position:relative}
+  .tog:after{content:"";position:absolute;right:2px;top:2px;width:14px;height:14px;border-radius:50%;background:#fff}
+  table.info{width:100%;font-size:11px;color:#aeb4c2}
+  table.info td:first-child{color:#727888;width:40%}
+  .admin{border:1px dashed #3b4252}
+  .btn{display:inline-block;background:#232733;padding:4px 9px;border-radius:5px;margin:2px 3px 2px 0;font-size:11px}
+  .btn.red{background:#3a1c1c;color:#ff8a8a}
+  .video{height:190px;background:linear-gradient(135deg,#2b303b,#171a21);border-radius:6px;position:relative;display:flex;align-items:flex-end;padding:8px;color:#aab}
+  .live{position:absolute;top:8px;left:8px;background:#c0392b;color:#fff;font-size:10px;padding:1px 6px;border-radius:4px}
+  .vctl{position:absolute;right:8px;bottom:8px;display:flex;gap:6px}
+  .vctl span{background:rgba(0,0,0,.5);padding:3px 7px;border-radius:4px;font-size:11px}
+</style>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">A. Light — "Desk strip"</div>
+    <div class="mockup-body"><div class="pg">
+      <div class="hd"><span class="back">←</span><h3>Desk strip</h3><span class="chip">Office</span><span class="chip ok">● Online</span></div>
+      <div class="cols">
+        <div class="card"><div class="lbl">Live preview</div>
+          <div class="preview"><div class="bulb"></div><div class="base"></div></div>
+          <div style="text-align:center;color:#c9b6ff">Purple · 70%</div>
+        </div>
+        <div class="card"><div class="lbl">Controls</div>
+          <div class="row">Power <div class="tog"></div></div>
+          <div class="row">Brightness <div class="bar"><i style="width:70%"></i></div></div>
+          <div class="lbl" style="margin-top:10px">Color</div>
+          <div><span class="sw on" style="background:#9b59ff"></span><span class="sw" style="background:#ff5e5e"></span><span class="sw" style="background:#5ec8ff"></span><span class="sw" style="background:#5fd38d"></span><span class="sw" style="background:#ffd27a"></span></div>
+          <div class="hue" style="margin-top:8px"></div>
+          <div class="lbl" style="margin-top:10px">White temperature</div>
+          <div class="temp"></div>
+        </div>
+      </div>
+      <div class="cols" style="margin-top:12px">
+        <div class="card"><div class="lbl">Device info</div>
+          <table class="info"><tr><td>Brand / model</td><td>Govee H618C</td></tr><tr><td>Type</td><td>Light</td></tr><tr><td>Connection</td><td>Local (LAN)</td></tr><tr><td>Address</td><td>192.168.0.x</td></tr><tr><td>Last seen</td><td>just now</td></tr></table>
+        </div>
+        <div class="card admin"><div class="lbl">Admin</div>
+          <span class="btn">Rename</span><span class="btn">Move room</span><span class="btn">Change type</span><span class="btn">Who has access</span><span class="btn red">Remove</span>
+        </div>
+      </div>
+    </div></div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">B. Camera — "Front door"</div>
+    <div class="mockup-body"><div class="pg">
+      <div class="hd"><span class="back">←</span><h3>Front door</h3><span class="chip">Entrance</span><span class="chip ok">● Online</span><span class="chip cloud">☁ via Tuya cloud</span></div>
+      <div class="card"><div class="video"><span class="live">LIVE</span>Nexxt camera feed<div class="vctl"><span>🔇</span><span>⛶ Full screen</span></div></div></div>
+      <p style="color:#8a90a0;font-size:11px;margin:6px 2px">Cloud-streamed: won't play when the internet is down.</p>
+      <div class="cols" style="margin-top:6px">
+        <div class="card"><div class="lbl">Device info</div>
+          <table class="info"><tr><td>Brand / model</td><td>Nexxt AHIMPFI4U1</td></tr><tr><td>Type</td><td>Camera</td></tr><tr><td>Stream source</td><td>Tuya cloud</td></tr><tr><td>Last seen</td><td>just now</td></tr></table>
+        </div>
+        <div class="card admin"><div class="lbl">Admin</div>
+          <span class="btn">Rename</span><span class="btn">Move room</span><span class="btn">Stream source ▾</span><span class="btn">Who has access</span><span class="btn red">Remove</span>
+        </div>
+      </div>
+    </div></div>
+  </div>
+</div>

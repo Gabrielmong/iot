@@ -1,0 +1,2 @@
+tinytuya==1.20.0
+python-kasa==0.12.0

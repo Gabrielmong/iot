@@ -1,0 +1,251 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  USER
+  GUEST
+}
+
+enum Brand {
+  TUYA
+  KASA
+  GOVEE
+  SWANN
+  ANDROID_TV
+  SAMSUNG
+  HISENSE
+  WOL
+}
+
+enum StreamSource {
+  LOCAL
+  CLOUD
+}
+
+enum DeviceKind {
+  LIGHT
+  SWITCH
+  PLUG
+  CAMERA
+  TV
+  COMPUTER
+  UNKNOWN
+}
+
+enum DeviceStatus {
+  OK
+  KEY_INVALID
+  NEEDS_KEY
+  NEEDS_CREDENTIALS
+  NEEDS_PAIRING
+}
+
+model User {
+  id             String        @id @default(cuid())
+  name           String        @unique
+  avatarColor    String
+  /// One of the built-in pictures (AVATAR_IMAGES); null shows the initial on avatarColor.
+  avatarImage    String?
+  role           Role
+  pinHash        String?
+  failedPinCount Int           @default(0)
+  lockedUntil    DateTime?
+  createdAt      DateTime      @default(now())
+  sessions       Session[]
+  grants         DeviceGrant[]
+  layouts        UserDashboardLayout[]
+  routines       Routine[]         @relation("RoutineOwner")
+  createdShared  Routine[]         @relation("RoutineCreator")
+  routineAccess  RoutineAudience[]
+  cameraGroups   CameraGroup[]         @relation("CameraGroupOwner")
+  createdCameraGroups CameraGroup[]    @relation("CameraGroupCreator")
+  cameraGroupAccess CameraGroupAudience[]
+}
+
+model Session {
+  id         String   @id @default(cuid())
+  tokenHash  String   @unique
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shared     Boolean
+  lastSeenAt DateTime
+  expiresAt  DateTime
+}
+
+model Room {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  sortOrder Int
+  devices   Device[]
+  routines  Routine[]
+}
+
+model Device {
+  id           String        @id @default(cuid())
+  brand        Brand
+  kind         DeviceKind
+  externalId   String
+  name         String
+  model        String?
+  ip           String?
+  adopted      Boolean       @default(false)
+  roomId       String?
+  room         Room?         @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  parentId     String?
+  parent       Device?       @relation("DeviceChildren", fields: [parentId], references: [id], onDelete: SetNull)
+  children     Device[]      @relation("DeviceChildren")
+  config       Json
+  secret       String?
+  status       DeviceStatus  @default(OK)
+  lastSeenAt   DateTime?
+  streamSource StreamSource?
+  grants       DeviceGrant[]
+  cameraGroups CameraGroupMember[]
+
+  @@unique([brand, externalId])
+}
+
+model DeviceGrant {
+  userId   String
+  deviceId String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  device   Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@id([userId, deviceId])
+}
+
+model Setting {
+  key   String @id
+  value String
+}
+
+/// A user's own arrangement of one dashboard tab ("all" or a room id). Items: [{ deviceId, size }].
+model UserDashboardLayout {
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tab       String
+  items     Json
+  updatedAt DateTime @updatedAt
+
+  @@id([userId, tab])
+}
+
+/// The admin-set default arrangement of one dashboard tab.
+model DefaultDashboardLayout {
+  tab       String   @id
+  items     Json
+  updatedAt DateTime @updatedAt
+}
+
+enum RoutineScope {
+  PERSONAL
+  SHARED
+}
+
+enum RunStatus {
+  RUNNING
+  OK
+  PARTIAL
+  FAILED
+  INTERRUPTED
+  STOPPED
+}
+
+/// A named sequence of steps (JSON: [{ kind: "SET", actions } | { kind: "WAIT", minutes }]).
+/// PERSONAL routines have an owner; SHARED ones belong to every admin (createdBy is display only).
+model Routine {
+  id          String            @id @default(cuid())
+  name        String
+  scope       RoutineScope
+  ownerId     String?
+  owner       User?             @relation("RoutineOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  createdById String?
+  createdBy   User?             @relation("RoutineCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  roomId      String?
+  room        Room?             @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  steps       Json
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  schedules   RoutineSchedule[]
+  audience    RoutineAudience[]
+  lastRun     RoutineRun?
+}
+
+/// Runs the routine at minuteOfDay (server local time) on the given weekdays (1 = Monday … 7 = Sunday).
+model RoutineSchedule {
+  id          String  @id @default(cuid())
+  routineId   String
+  routine     Routine @relation(fields: [routineId], references: [id], onDelete: Cascade)
+  minuteOfDay Int
+  days        Int[]
+  enabled     Boolean @default(true)
+}
+
+/// Users who may see and run a SHARED routine.
+model RoutineAudience {
+  routineId String
+  routine   Routine @relation(fields: [routineId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([routineId, userId])
+}
+
+/// The most recent run of a routine. problems: [{ step, deviceId, deviceName, reason }].
+/// currentStep/waitUntil: progress while RUNNING; startedBy: a user's name, null when the schedule started it.
+model RoutineRun {
+  routineId String    @id
+  routine   Routine   @relation(fields: [routineId], references: [id], onDelete: Cascade)
+  status    RunStatus
+  startedAt DateTime
+  endedAt     DateTime?
+  problems    Json
+  currentStep Int?
+  waitUntil   DateTime?
+  startedBy   String?
+}
+
+/// Cameras shown together in the multi-view grid. Sharing works like routines: PERSONAL groups have an
+/// owner; SHARED ones belong to every admin (createdBy is display only). layout: 1, 2, 4, 6, 8 or 16.
+model CameraGroup {
+  id          String                @id @default(cuid())
+  name        String
+  scope       RoutineScope
+  ownerId     String?
+  owner       User?                 @relation("CameraGroupOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  createdById String?
+  createdBy   User?                 @relation("CameraGroupCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  layout      Int
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+  members     CameraGroupMember[]
+  audience    CameraGroupAudience[]
+}
+
+/// A camera in a group, at `position` (0 first).
+model CameraGroupMember {
+  groupId  String
+  group    CameraGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  deviceId String
+  device   Device      @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  position Int
+
+  @@id([groupId, deviceId])
+}
+
+/// Users who may see a SHARED camera group.
+model CameraGroupAudience {
+  groupId String
+  group   CameraGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  userId  String
+  user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([groupId, userId])
+}

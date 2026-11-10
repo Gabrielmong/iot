@@ -1,0 +1,64 @@
+import { fireEvent, render, screen, within } from '@testing-library/react'
+import { routineFixture, runFixture } from '../../test/routineFixtures'
+import { clockTime } from '../lib/runProgress'
+import type { Routine } from '../types'
+import { RunDetailsDialog } from './RunDetailsDialog'
+
+const names = new Map([
+  ['lamp', 'Floor lamp'],
+  ['tv', 'TV plug'],
+])
+
+function movieNight(lastRun: Routine['lastRun']): Routine {
+  const r = routineFixture({ name: 'Movie night', deviceIds: ['lamp', 'tv'], lastRun })
+  r.steps.push({ kind: 'WAIT', waitMinutes: 45, actions: [] })
+  r.steps.push({ kind: 'SET', waitMinutes: null, actions: [{ ...r.steps[0]!.actions[0]!, on: false }] })
+  return r
+}
+
+const step = (n: number) => screen.getByRole('listitem', { name: new RegExp(`^Step ${n}`) })
+
+describe('RunDetailsDialog', () => {
+  it('shows finished, current and next steps of a running routine', () => {
+    const waitUntil = new Date(Date.now() + 12.5 * 60_000).toISOString()
+    const run = runFixture('RUNNING', [{ step: 0, deviceId: 'tv', deviceName: 'TV plug', reason: 'UNREACHABLE' }], 1, { currentStep: 1, waitUntil, startedBy: 'Ann' })
+    const onStop = vi.fn()
+    render(<RunDetailsDialog routine={movieNight(run)} deviceNames={names} onStop={onStop} onClose={() => {}} />)
+
+    expect(screen.getByRole('dialog', { name: 'Movie night' })).toBeInTheDocument()
+    expect(screen.getByText(/by Ann$/)).toBeInTheDocument()
+    expect(within(step(1)).getByText('Done')).toBeInTheDocument()
+    expect(within(step(1)).getByText('Floor lamp: On ✓')).toBeInTheDocument()
+    expect(within(step(1)).getByText("TV plug: On ⚠ couldn't reach it")).toBeInTheDocument()
+    expect(within(step(2)).getByText('Now')).toBeInTheDocument()
+    expect(within(step(2)).getByText(`12 min left · next step at ${clockTime(waitUntil)}`)).toBeInTheDocument()
+    expect(within(step(3)).getByText('Next')).toBeInTheDocument()
+    expect(within(step(3)).getByText('Floor lamp: Off')).toBeInTheDocument()
+    expect(screen.getByText('1 other device had problems')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Stop' }))
+    expect(onStop).toHaveBeenCalled()
+  })
+
+  it('shows the steps and how the last run went when not running', () => {
+    const run = runFixture('PARTIAL', [{ step: 0, deviceId: 'tv', deviceName: 'TV plug', reason: 'NOT_READY' }], 0, { startedBy: null })
+    render(<RunDetailsDialog routine={movieNight(run)} deviceNames={names} onStop={() => {}} onClose={() => {}} />)
+    expect(screen.getByText(/by the schedule · Some devices had problems$/)).toBeInTheDocument()
+    expect(within(step(1)).getByText('TV plug: On ⚠ needs setup')).toBeInTheDocument()
+    expect(within(step(2)).getByText(/Wait 45 min$/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Stop' })).not.toBeInTheDocument()
+  })
+
+  it("names devices the viewer can't see generically", () => {
+    render(<RunDetailsDialog routine={movieNight(null)} deviceNames={new Map()} onStop={() => {}} onClose={() => {}} />)
+    expect(within(step(1)).getAllByText(/^Another device: On$/)).toHaveLength(2)
+    expect(screen.getByText('Not run yet')).toBeInTheDocument()
+  })
+
+  it("keeps the screen-reader step label 1px so it can't stretch the window", () => {
+    render(<RunDetailsDialog routine={movieNight(null)} deviceNames={names} onStop={() => {}} onClose={() => {}} />)
+    const hidden = within(step(1)).getByText(/^Step 1:/)
+    expect(getComputedStyle(hidden).width).toBe('1px')
+    expect(getComputedStyle(hidden).height).toBe('1px')
+  })
+})

@@ -1,0 +1,147 @@
+type User { id: ID!  name: String!  avatarColor: String!  avatarImage: String  role: Role!  hasPin: Boolean! } # avatarImage: a built-in picture id, or null for the initial
+enum Role { ADMIN USER GUEST }
+type Room { id: ID!  name: String!  sortOrder: Int! }
+type Rgb { r: Int!  g: Int!  b: Int! }
+type LightState { on: Boolean!  brightness: Int!  mode: String!  color: Rgb  colorTempK: Int }
+type DeviceState { online: Boolean!  on: Boolean  light: LightState }
+enum Brand { TUYA KASA GOVEE SWANN ANDROID_TV SAMSUNG HISENSE WOL }
+enum StreamSource { LOCAL CLOUD }
+enum Connection { LOCAL CLOUD }
+enum DeviceKind { LIGHT SWITCH PLUG CAMERA TV COMPUTER UNKNOWN }
+enum DeviceStatus { OK KEY_INVALID NEEDS_KEY NEEDS_CREDENTIALS NEEDS_PAIRING }
+type Device { id: ID!  name: String!  brand: Brand!  kind: DeviceKind!  model: String  room: Room  parentId: ID  state: DeviceState!  status: DeviceStatus!  lastSeenAt: String  connection: Connection!  streamSource: StreamSource  ip: String  tv: TvInfo }  # ip: null unless the caller is an admin; tv: null unless a TV
+enum TvKey { POWER VOLUME_UP VOLUME_DOWN MUTE UP DOWN LEFT RIGHT OK BACK HOME }
+enum TvApp { YOUTUBE NETFLIX PRIME_VIDEO DISNEY_PLUS SPOTIFY }
+enum PairingMode { CODE ACCEPT_ON_TV }  # CODE: type the code the TV shows; ACCEPT_ON_TV: accept the prompt on the TV
+type TvInfo { apps: [TvApp!]!  canPowerOn: Boolean! }  # canPowerOn: false when the TV can't be woken from off
+type AdminDevice { id: ID!  name: String!  brand: Brand!  kind: DeviceKind!  model: String  ip: String  adopted: Boolean!  room: Room  parentId: ID  status: DeviceStatus!  hasKey: Boolean!  lastSeenAt: String  online: Boolean!  testable: Boolean!  testBlockedReason: String  mac: String } # mac: computers only; testable: an un-adopted device the admin can switch on/off to identify it; otherwise testBlockedReason says why
+type DeviceTrial { deviceId: ID!  state: DeviceState! } # an un-adopted device linked in memory so the admin can switch it to identify it
+type AuthPayload { token: String!  user: User! }
+type IntegrationStatus { tuyaCloudConfigured: Boolean!  kasaConfigured: Boolean!  swannConfigured: Boolean!  tuyaLastSyncAt: String  kasaLastSavedAt: String  swannLastSyncAt: String } # ISO times of the last successful key sync / sign-in / recorder probe
+type SwannProbeResult { channels: Int!  codecs: [String!]! }
+type SyncResult { matched: Int!  unmatched: [String!]!  found: [String!]! } # found: quiet devices located on the LAN by key (also in matched)
+input StatePatchInput { on: Boolean  brightness: Int  color: RgbInput  colorTempK: Int }
+input RgbInput { r: Int!  g: Int!  b: Int! }
+enum TileSize { S1x1 W2x1 T1x2 L2x2 }
+type LayoutItem { deviceId: ID!  size: TileSize! }
+input LayoutItemInput { deviceId: ID!  size: TileSize! }
+type DashboardLayout { tab: ID!  items: [LayoutItem!]!  isDefault: Boolean! } # tab: "all" or a room id
+enum RoutineScope { PERSONAL SHARED }
+enum StepKind { SET WAIT }
+enum RunStatus { RUNNING OK PARTIAL FAILED INTERRUPTED STOPPED }
+enum ProblemReason { UNREACHABLE NOT_READY NO_ACCESS REMOVED }
+type DeviceAction { deviceId: ID!  deviceExists: Boolean!  on: Boolean  brightness: Int  color: Rgb  colorTempK: Int } # on: null = leave power as it is; deviceExists: false once the device was removed
+type RoutineStep { kind: StepKind!  waitMinutes: Int  actions: [DeviceAction!]! }
+type RoutineSchedule { time: String!  days: [Int!]!  enabled: Boolean! } # time "HH:MM" server local time; days 1 = Monday … 7 = Sunday
+type RunProblem { step: Int!  deviceId: ID!  deviceName: String!  reason: ProblemReason! } # step: index of the Set step
+type RoutineRun { status: RunStatus!  startedAt: String!  endedAt: String  problems: [RunProblem!]!  hiddenProblems: Int!  currentStep: Int  waitUntil: String  startedBy: String } # hiddenProblems: problems on devices the viewer can't see; currentStep (index) and waitUntil while RUNNING; startedBy null = the schedule
+type Routine { id: ID!  name: String!  scope: RoutineScope!  room: Room  owner: User  steps: [RoutineStep!]!  schedules: [RoutineSchedule!]!  audience: [ID!]!  lastRun: RoutineRun  editable: Boolean! } # room: null = Whole house; audience: [] unless the caller is an admin
+type RoutineRunEvent { routineId: ID!  run: RoutineRun! } # routineId "try" for the subscriber's own Try it run
+type CameraGroup { id: ID!  name: String!  scope: RoutineScope!  owner: User  layout: Int!  cameraIds: [ID!]!  audience: [ID!]!  editable: Boolean! } # cameraIds: in order, only cameras the viewer can see; audience: [] unless admin
+input CameraGroupInput { name: String!  scope: RoutineScope!  layout: Int!  cameraIds: [ID!]!  audience: [ID!] } # layout: 1, 2, 4, 6, 8 or 16; 1-16 cameras
+input DeviceActionInput { deviceId: ID!  on: Boolean  brightness: Int  color: RgbInput  colorTempK: Int }
+input RoutineStepInput { kind: StepKind!  waitMinutes: Int  actions: [DeviceActionInput!] }
+input RoutineScheduleInput { time: String!  days: [Int!]!  enabled: Boolean }
+input RoutineInput { name: String!  scope: RoutineScope!  roomId: ID  steps: [RoutineStepInput!]!  schedules: [RoutineScheduleInput!]!  audience: [ID!] } # audience: SHARED only
+
+enum PanDirection { UP RIGHT DOWN LEFT }
+enum NightVision { AUTO ON OFF }
+type PresetSlot { slot: Int!  saved: Boolean! } # saved: stored from this app (the camera can't report it)
+type CameraSettings { nightVision: NightVision  privacy: Boolean  flip: Boolean  followMotion: Boolean  timestamp: Boolean  statusLight: Boolean  motionDetection: Boolean  wdr: Boolean } # null = unsupported or unreadable; see supported
+type CameraControls { deviceId: ID!  pan: Boolean!  presets: [PresetSlot!]  supported: [String!]!  settings: CameraSettings } # supported: CameraSettingsInput fields the caller may change (privacy: admins); settings null when the values couldn't be read
+input CameraSettingsInput { nightVision: NightVision  privacy: Boolean  flip: Boolean  followMotion: Boolean  timestamp: Boolean  statusLight: Boolean  motionDetection: Boolean  wdr: Boolean }
+enum DeployEventKind { DEPLOY ROLLBACK RESTART PAUSE RESUME }
+enum DeployEventStatus { RUNNING SUCCEEDED FAILED SKIPPED }
+type DeployEvent { id: ID!  kind: DeployEventKind!  status: DeployEventStatus!  sha: String  message: String  by: String!  startedAt: String!  finishedAt: String  detail: String  canRollback: Boolean!  rollbackBlockedReason: String }
+type DeployRunning { sha: String!  message: String!  deployedAt: String! }
+type DeployStatus { available: Boolean!  running: DeployRunning  autoDeploy: Boolean!  pausedReason: String  lastCheckAt: String  lastCheckError: String  busy: String  helperUpdateAvailable: Boolean!  events: [DeployEvent!]! } # available false: every other field empty/default
+type Query {
+  loginUsers: [User!]!            # public
+  homeName: String!               # public; the household's display name ("Home" until set)
+  me: User
+  rooms: [Room!]!
+  devices: [Device!]!             # adopted + granted (all adopted for admin)
+  device(id: ID!): Device         # null if missing, not adopted, or not granted
+  adminDevices: [AdminDevice!]!   # admin
+  users: [User!]!                 # admin
+  grants(userId: ID!): [ID!]!     # admin
+  deviceGrants(deviceId: ID!): [ID!]! # admin; user ids with explicit grants
+  integrations: IntegrationStatus! # admin
+  dashboardLayouts: [DashboardLayout!]! # effective per tab for the caller (own, else default); tabs with none are omitted
+  routines: [Routine!]!           # the caller's dashboard set: own personal + shared they can see (admins: own + every shared)
+  otherRoutines: [Routine!]!      # admin; other users' personal routines
+  routine(id: ID!): Routine       # null if missing or not visible
+  cameraGroups: [CameraGroup!]!       # own personal groups, then shared ones the caller can see (admins: all shared); each by name
+  otherCameraGroups: [CameraGroup!]!  # admin; other users' personal groups
+  deployStatus: DeployStatus!         # admin
+  deployLog(eventId: ID!): String     # admin; null when the event has no log
+  cameraControls(deviceId: ID!): CameraControls # null: not a visible camera, or no known controls
+}
+type Mutation {
+  moveCamera(deviceId: ID!, direction: PanDirection!): Boolean! # repeat while held; the server stops the camera 4 s after the last one
+  stopCamera(deviceId: ID!): Boolean!
+  gotoCameraPreset(deviceId: ID!, slot: Int!): Boolean! # slot 1-4
+  saveCameraPreset(deviceId: ID!, slot: Int!): CameraControls!
+  setCameraSettings(deviceId: ID!, settings: CameraSettingsInput!): CameraControls! # privacy: admin
+  login(userId: ID!, pin: String!, shared: Boolean!): AuthPayload!
+  loginGuest(userId: ID!, shared: Boolean!): AuthPayload!  # public; PIN-less guests only
+  logout: Boolean!
+  setHomeName(name: String!): String! # admin; returns the stored, trimmed name
+  setDeviceState(id: ID!, patch: StatePatchInput!): Device!
+  createUser(name: String!, pin: String, role: Role!, avatarColor: String!, avatarImage: String): User!
+  updateUser(id: ID!, name: String, role: Role, avatarColor: String, avatarImage: String, pin: String, clearPin: Boolean): User! # avatarImage: null keeps it, "" clears it; clearPin: guests only
+  deleteUser(id: ID!): Boolean!
+  updateProfile(name: String, avatarColor: String, avatarImage: String): User! # the caller's own; null keeps a field, avatarImage "" clears it
+  changeMyPin(currentPin: String!, newPin: String!): Boolean!  # signed-in user with a PIN; ends their other sessions
+  setGrants(userId: ID!, deviceIds: [ID!]!): [ID!]!
+  setDeviceGrants(deviceId: ID!, userIds: [ID!]!): [ID!]! # admin; replaces grants for the device (ADMIN ids ignored)
+  createRoom(name: String!): Room!
+  updateRoom(id: ID!, name: String, sortOrder: Int): Room!
+  deleteRoom(id: ID!): Boolean!
+  adoptDevice(id: ID!, name: String!, roomId: ID, kind: DeviceKind): AdminDevice!
+  updateDevice(id: ID!, name: String, roomId: ID, kind: DeviceKind): AdminDevice!
+  removeDevice(id: ID!): Boolean!
+  setTuyaCloud(accessId: String!, accessSecret: String!, region: String!): IntegrationStatus!
+  syncTuyaKeys: SyncResult!
+  setTuyaLocalKey(deviceId: ID!, localKey: String!): AdminDevice!
+  setKasaCredentials(username: String!, password: String!): IntegrationStatus!
+  addKasaByIp(ip: String!): AdminDevice!
+  addComputer(name: String!, roomId: ID, mac: String!, ip: String): AdminDevice! # admin; mac in any common notation, stored aa:bb:cc:dd:ee:ff; ip enables the awake check
+  updateComputer(id: ID!, mac: String!, ip: String): AdminDevice! # admin; an omitted ip clears it
+  sendTvKey(deviceId: ID!, key: TvKey!): Boolean!  # users with access to the TV
+  launchTvApp(deviceId: ID!, app: TvApp!): Boolean!
+  addTvByIp(ip: String!): AdminDevice!  # admin; asks the Android TV, Samsung and Hisense drivers in turn, records the first match like a discovery
+  startTvPairing(deviceId: ID!): PairingMode!  # admin; pairing stays open for 2 minutes
+  finishTvPairing(deviceId: ID!, code: String): AdminDevice!  # admin; code only for CODE pairing
+  cancelTvPairing(deviceId: ID!): Boolean!  # admin
+  setSwannRecorder(host: String!, username: String!, password: String!): SwannProbeResult! # admin
+  setCameraOnvif(deviceId: ID!, username: String!, password: String!, confirmAddress: String): Device! # admin; Tuya camera ⇒ local ONVIF stream (LOCAL). confirmAddress: the IP the admin confirmed (required for Tuya 3.1/3.3)
+  clearCameraOnvif(deviceId: ID!): Device! # admin; back to the Tuya cloud (CLOUD)
+  saveDashboardLayout(tab: ID!, items: [LayoutItemInput!]!, asDefault: Boolean = false): DashboardLayout! # asDefault => admin
+  startDeviceTrial(id: ID!): DeviceTrial! # admin; un-adopted, testable devices only; ends after 2 min unused
+  setTrialState(id: ID!, on: Boolean!): DeviceTrial! # admin
+  endDeviceTrial(id: ID!): Boolean! # admin
+  resetDashboardLayout(tab: ID!): DashboardLayout # deletes the caller's override; returns the default now in effect, or null
+  createRoutine(input: RoutineInput!): Routine!
+  updateRoutine(id: ID!, input: RoutineInput!): Routine! # scope can't change
+  deleteRoutine(id: ID!): Boolean!
+  runRoutine(id: ID!): Boolean!   # anyone who can see it; restarts a running routine
+  stopRoutine(id: ID!): Boolean!  # false if it wasn't running
+  tryRoutine(input: RoutineInput!): Boolean! # runs the draft once as the caller; not stored as lastRun
+  stopTry: Boolean!
+  createCameraGroup(input: CameraGroupInput!): CameraGroup!
+  updateCameraGroup(id: ID!, input: CameraGroupInput!): CameraGroup! # scope can't change
+  deleteCameraGroup(id: ID!): Boolean!
+  deployNow: ID!                  # admin; each deploy command returns the new event id
+  restartApp: ID!                 # admin
+  pauseAutoDeploy: ID!            # admin
+  resumeAutoDeploy: ID!           # admin
+  rollbackDeploy(sha: String!): ID! # admin
+}
+type Subscription {
+  deviceState: Device!     # filtered per user
+  devicesChanged: Boolean! # list/grant/room changes; client refetches `devices`
+  routineRunChanged: RoutineRunEvent! # routines the subscriber can see, plus their own Try it run
+  cameraGroupsChanged: Boolean! # a camera group was created, updated or deleted; client refetches
+  routinesChanged: Boolean! # a routine was created, updated or deleted; client refetches `routines`
+}

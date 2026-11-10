@@ -1,0 +1,38 @@
+import { alpha, createTheme } from '@mui/material/styles'
+import { components } from './theme/components'
+import { FONT_BODY, FONT_DISPLAY, palette } from './theme/tokens'
+
+const success = { main: palette.on, contrastText: palette.night }
+
+/**
+ * "House at night": deep indigo surfaces, lamp-amber accent, green for things that are on.
+ * Device names and headings use Bricolage Grotesque; everything else uses Figtree.
+ */
+export const theme = createTheme({
+  colorSchemes: {
+    dark: {
+      palette: {
+        primary: { main: palette.lamp, contrastText: palette.night },
+        success,
+        error: { main: palette.alarm },
+        background: { default: palette.night, paper: palette.surface },
+        text: { primary: palette.text, secondary: palette.muted },
+        divider: alpha(palette.line, 0.14),
+      },
+    },
+    light: { palette: { success } },
+  },
+  defaultColorScheme: 'dark',
+  cssVariables: true,
+  shape: { borderRadius: 8 },
+  typography: {
+    fontFamily: FONT_BODY,
+    h3: { fontFamily: FONT_DISPLAY, fontWeight: 700, letterSpacing: '-0.02em' },
+    h4: { fontFamily: FONT_DISPLAY, fontWeight: 700, letterSpacing: '-0.02em' },
+    h5: { fontFamily: FONT_DISPLAY, fontWeight: 650, letterSpacing: '-0.015em' },
+    h6: { fontFamily: FONT_DISPLAY, fontWeight: 650, letterSpacing: '-0.01em' },
+    subtitle1: { fontWeight: 600 },
+    button: { textTransform: 'none', fontWeight: 600 },
+  },
+  components,
+})

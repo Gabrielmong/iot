@@ -1,0 +1,40 @@
+[
+  {
+    "variant": "v1",
+    "username": "user@example.com",
+    "password": "password123",
+    "localSeedHex": "30313233343536373839616263646566",
+    "remoteSeedHex": "66656463626139383736353433323130",
+    "authHashHex": "5f03c81deeba76ab46ecedc0d3350b91",
+    "handshake1ResponseHex": "66656463626139383736353433323130c76efabc3fabfa630650b45bf6bc1a1fec7019f708215a4fd973999143060ed5",
+    "handshake2Hex": "5b491fda80b899254789d6a95b8b680877f0a37a826d118ee3741db495fd821e",
+    "keyHex": "984a594ae0a23ab5067fd871d2bfcb38",
+    "ivHex": "6de3c56287000954128d8e9e",
+    "initialSeq": -1909247338,
+    "seq": -1909247337,
+    "sigHex": "18c2d15d0fcec205d1ef5703b81c29630376f600518185256d50a6ac",
+    "plaintext": "{\"system\":{\"get_sysinfo\":{}}}",
+    "requestBodyHex": "9d89ce4686eebb923529d01a0d11ce9f1311349698f5e4625f7c2ab1c65b02d21d7d76fd81353606ac6f5ccc086002cf4b26f49c79380e21dbff5a2854ad5838",
+    "responsePlaintext": "{\"system\":{\"get_sysinfo\":{\"relay_state\":1,\"err_code\":0}}}",
+    "responseBodyHex": "5fe7b42923ef64a0f5c919a20c750bb6f531ec8fba1e40b245e9cc24c71cf9431d7d76fd81353606ac6f5ccc086002cff9fe22a819890ae152c1fb29a5aaa598ba5cd59ab6a74e4c984cf1c39ed75e167d9f7978aa67bed619f13b975a0171f0"
+  },
+  {
+    "variant": "v2",
+    "username": "user@example.com",
+    "password": "password123",
+    "localSeedHex": "30313233343536373839616263646566",
+    "remoteSeedHex": "66656463626139383736353433323130",
+    "authHashHex": "35365bf4467b1b0fa6569d60a5fa0b11ebc3010dc9b6c9018da3c00d9969e404",
+    "handshake1ResponseHex": "66656463626139383736353433323130afb1c85470d5075a1d8cb91e6bb33f9415011c00bcbf0d9e322c42e8b31cebca",
+    "handshake2Hex": "106b0c55df35c204c54bf4471d3d3e7a165fffd73ff03e0179a2ee32a65d9364",
+    "keyHex": "2b72a7b1302b329b0d9c99efd41aa035",
+    "ivHex": "8d91128045b92099263e0e71",
+    "initialSeq": -2057805086,
+    "seq": -2057805085,
+    "sigHex": "8bded14f9c3422f143333cc328f9875b4a27ecf0bc8debc13f5b3e3c",
+    "plaintext": "{\"system\":{\"get_sysinfo\":{}}}",
+    "requestBodyHex": "f28195de6b9b717c6131c62d3aacb1f957fef6202071b981405cf5818266819f2ccf1acedcc79976095f4a7ac5e67eaa8b3b2f250a6cbc7c03f22c1e396bc18f",
+    "responsePlaintext": "{\"system\":{\"get_sysinfo\":{\"relay_state\":1,\"err_code\":0}}}",
+    "responseBodyHex": "a295d0d89d9cc29f07edd6fe4d9d9bf664b7063bf1b6e712ae7e55000575710c2ccf1acedcc79976095f4a7ac5e67eaa829cb1550802a050e865808bcdbfa0391729fd7b444cfe00656b897274823f891f089f7f20e2bc25e06d1399a4843783"
+  }
+]

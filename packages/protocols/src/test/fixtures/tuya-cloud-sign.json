@@ -1,0 +1,24 @@
+[
+  {
+    "accessId": "id",
+    "accessSecret": "secret",
+    "accessToken": "",
+    "t": "1700000000000",
+    "nonce": "",
+    "method": "GET",
+    "path": "/v1.0/token?grant_type=1",
+    "body": "",
+    "sign": "3A0955D30829FF424CDE7A508D72DCD4D6C25196F5C0F566866AA52FEB633802"
+  },
+  {
+    "accessId": "id",
+    "accessSecret": "secret",
+    "accessToken": "tok",
+    "t": "1700000000000",
+    "nonce": "",
+    "method": "GET",
+    "path": "/v1.0/users/abc/devices",
+    "body": "",
+    "sign": "01B1FB4CC955DB7FFD659ED814FFFDDA0B9785ABD7665515C669702C0F289B8D"
+  }
+]
