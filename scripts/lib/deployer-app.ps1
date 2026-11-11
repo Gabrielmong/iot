@@ -58,10 +58,14 @@ function Install-DeployerService([string]$Service, $Layout, [string]$Node, [swit
     }
     $settings = [ordered]@{
         AppDirectory = $Layout.App; ObjectName = 'LocalSystem'; Start = 'SERVICE_AUTO_START'
-        AppExit = 'Default Restart'; AppRestartDelay = '5000'
+        AppExit = @('Default', 'Restart'); AppRestartDelay = '5000'
         AppStdout = Join-Path $Layout.Data 'service.out.log'; AppStderr = Join-Path $Layout.Data 'service.err.log'
         AppRotateFiles = '1'; AppRotateOnline = '1'; AppRotateBytes = '5242880'
         AppStopMethodConsole = '660000'   # the helper finishes the running operation (up to 10 min) before exiting
     }
-    foreach ($key in $settings.Keys) { Set-NssmValue $Service $key $settings[$key] -DryRun:$DryRun }
+    foreach ($key in $settings.Keys) {
+        $value = $settings[$key]
+        if ($value -is [array]) { Set-NssmValues $Service $key $value -DryRun:$DryRun }
+        else { Set-NssmValue $Service $key $value -DryRun:$DryRun }
+    }
 }

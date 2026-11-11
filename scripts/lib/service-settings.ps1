@@ -8,7 +8,7 @@ function Get-HomeControlServiceSettings([string]$AppDirectory, [string]$LogsDir,
         ObjectName           = 'NT AUTHORITY\LocalService'
         AppEnvironmentExtra  = @($Environment)
         Start                = 'SERVICE_AUTO_START'
-        AppExit              = 'Default Restart'
+        AppExit              = @('Default', 'Restart')   # two nssm arguments: AppExit <exit code> <action>
         AppRestartDelay      = '5000'
         AppStdout            = Join-Path $LogsDir 'home-control.out.log'
         AppStderr            = Join-Path $LogsDir 'home-control.err.log'

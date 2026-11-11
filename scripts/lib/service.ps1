@@ -4,9 +4,10 @@ function Set-NssmValue([string]$Service, [string]$Key, [string]$Value, [switch]$
     Invoke-Step "nssm set $Key = $Value" { nssm set $Service $Key $Value | Out-Null } -DryRun:$DryRun
 }
 
-# Multi-valued nssm settings (e.g. AppEnvironmentExtra): each KEY=VALUE is its own argument.
+# Multi-part nssm settings, each part its own argument: AppEnvironmentExtra (one KEY=VALUE each), AppExit (code, action).
 function Set-NssmValues([string]$Service, [string]$Key, [string[]]$Values, [switch]$DryRun) {
-    Invoke-Step "nssm set $Key = $($Values -join "`n    ")" { nssm set $Service $Key @Values | Out-Null } -DryRun:$DryRun
+    $sep = if ($Key -eq 'AppEnvironmentExtra') { "`n    " } else { ' ' }
+    Invoke-Step "nssm set $Key = $($Values -join $sep)" { nssm set $Service $Key @Values | Out-Null } -DryRun:$DryRun
 }
 
 # Stops the service (also when StopPending) and waits until it is Stopped; throws if it never stops.
