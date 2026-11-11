@@ -15,15 +15,21 @@ function Assert-GitVersion([string]$Git, [switch]$DryRun) {
 # Runs $Action with the token in GIT_CONFIG_* env vars (never in argv, the remote URL or git config) and always
 # removes them from this session afterwards.
 function Invoke-WithGitAuth([string]$TokenFile, [scriptblock]$Action) {
-    $names = 'GIT_CONFIG_COUNT', 'GIT_CONFIG_KEY_0', 'GIT_CONFIG_VALUE_0'
+    $names = 'GIT_CONFIG_COUNT', 'GIT_CONFIG_KEY_0', 'GIT_CONFIG_VALUE_0', 'GIT_CONFIG_KEY_1', 'GIT_CONFIG_VALUE_1', 'GCM_INTERACTIVE', 'GIT_TERMINAL_PROMPT'
     $saved = @{}
     foreach ($n in $names) { $saved[$n] = [Environment]::GetEnvironmentVariable($n, 'Process') }
     try {
         $basic = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes('x-access-token:' + (Read-SecretText $TokenFile)))
-        $env:GIT_CONFIG_COUNT = '1'
+        $env:GIT_CONFIG_COUNT = '2'
         $env:GIT_CONFIG_KEY_0 = 'http.https://github.com/.extraheader'   # sent to github.com only, never to a redirect target
         $env:GIT_CONFIG_VALUE_0 = "Authorization: Basic $basic"
+        # A rejected token fails at once instead of opening Git Credential Manager's browser login or a prompt.
+        $env:GIT_CONFIG_KEY_1 = 'credential.interactive'; $env:GIT_CONFIG_VALUE_1 = 'false'
+        $env:GCM_INTERACTIVE = 'never'; $env:GIT_TERMINAL_PROMPT = '0'
         & $Action
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "GitHub refused the token or the repo. Check it with: curl.exe -s -o NUL -w '%{http_code}' -H ""Authorization: Bearer <token>"" https://api.github.com/repos/<owner>/<name> (200 = ok, 401 = bad token, 404 = token can't see this repo). To enter a new one: delete $TokenFile and re-run."
+        }
     } finally {
         foreach ($n in $names) { [Environment]::SetEnvironmentVariable($n, $saved[$n], 'Process') }
     }

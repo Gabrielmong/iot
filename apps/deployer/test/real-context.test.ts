@@ -51,9 +51,13 @@ describe('realContext', () => {
     const ctx = realContext(config, paths(), { github: 'ghp_tok123', api: 'api' }, new FakeSystem());
     const basic = Buffer.from('x-access-token:ghp_tok123').toString('base64');
     expect(ctx.gitEnv()).toEqual({
-      GIT_CONFIG_COUNT: '1',
+      GIT_CONFIG_COUNT: '2',
       GIT_CONFIG_KEY_0: 'http.https://github.com/.extraheader',
       GIT_CONFIG_VALUE_0: `Authorization: Basic ${basic}`,
+      GIT_CONFIG_KEY_1: 'credential.interactive',
+      GIT_CONFIG_VALUE_1: 'false',
+      GCM_INTERACTIVE: 'never',
+      GIT_TERMINAL_PROMPT: '0',
     });
     expect(ctx.secrets()).toContain(basic);
   });
