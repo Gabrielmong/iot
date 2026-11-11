@@ -64,3 +64,21 @@ Done: see `docs/superpowers/specs/2026-11-09-tvs-and-wake-on-lan-design.md` and 
   - apps via `launchapp`.
 - Add `mqtt` to `@home/protocols` then.
 - **Alternative:** some Hisense models also run Android TV or Google TV. This one runs VIDAA, so that doesn't apply here.
+
+## Installable app (PWA) on Android
+
+**Idea:** install Home on the phones and the wall tablet as a standalone app (own icon, no address bar), instead of a browser tab.
+
+**What exists (checked 2026-11-10):** icons in `apps/web/public` and a `site.webmanifest`, but the manifest is still a favicon-generator stub: empty `name`/`short_name`, white colours, and `index.html` doesn't link it. Fixing that is small:
+
+- name ("Home" or the admin-set home name), `start_url: "/"`, `display: "standalone"`, the night palette (`#0c1120` background, theme colour);
+- `<link rel="manifest">` and `<meta name="theme-color">` in `index.html`;
+- optionally a minimal service worker (Chrome no longer requires one for install).
+
+**Blocker: HTTPS.** Chrome on Android only installs a PWA from a secure origin. `http://<lan-ip>:4000` isn't one, so today you only get "Add to Home screen", a shortcut that opens a normal browser tab. Options:
+
+- **Own domain + Let's Encrypt (preferred):** a public DNS name (e.g. `home.<domain>`) pointing at the server's LAN IP, a certificate via the DNS-01 challenge (nothing opened to the internet), auto-renewed (e.g. win-acme). Every device trusts it with no setup. About $10/year for the domain. Some routers block public names resolving to private IPs (DNS rebinding protection) and need an exception.
+- **Own certificate authority (mkcert):** free, but each phone installs the CA certificate once, and Android then shows a "network may be monitored" notice.
+- **Tailscale:** trusted `*.ts.net` HTTPS and access away from home, but the Tailscale app must run on each device.
+
+**Work either way:** serve HTTPS from the server (443 or 4443, cert paths in `.env`), update `firewall.ps1`, and point the deploy helper's health check at the new address. HTTPS would also unblock the Spotify linking problem above.

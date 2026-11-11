@@ -3,13 +3,13 @@ import { GitHub, GitHubError } from '../src/github.js';
 
 type Call = { url: string; init?: RequestInit };
 
-function fake(handler: (url: string) => { status?: number; body?: unknown }) {
+function fake(handler: (url: string) => { status?: number; body?: unknown; headers?: Record<string, string> }) {
   const calls: Call[] = [];
   const impl = (async (url: string | URL | Request, init?: RequestInit) => {
     const u = String(url);
     calls.push({ url: u, init });
-    const { status = 200, body = {} } = handler(u);
-    return new Response(JSON.stringify(body), { status });
+    const { status = 200, body = {}, headers } = handler(u);
+    return new Response(JSON.stringify(body), { status, headers });
   }) as typeof fetch;
   return { impl, calls };
 }
@@ -59,6 +59,24 @@ describe('GitHub requests', () => {
     expect(err.message).toBe('GitHub token expired or invalid');
     expect(err.status).toBe(401);
     expect(err.message).not.toContain('secret');
+  });
+
+  it('403 names the missing permission, not an invalid token', async () => {
+    const { impl } = fake(() => ({ status: 403, headers: { 'x-ratelimit-remaining': '4999' } }));
+    const err = await new GitHub('o/r', 'secret', impl).checkState('abc').catch((e) => e);
+    expect(err.message).toBe(
+      'GitHub token is missing a permission: it needs Contents, Checks, Actions and Metadata: Read on this repo',
+    );
+    expect(err.status).toBe(403);
+  });
+
+  it.each([
+    [403, { 'x-ratelimit-remaining': '0' }],
+    [429, {}],
+  ])('%i from the rate limit says so', async (status, headers) => {
+    const { impl } = fake(() => ({ status, headers }));
+    const err = await new GitHub('o/r', 't', impl).head('main').catch((e) => e);
+    expect(err.message).toBe('GitHub rate limit reached; trying again later');
   });
 
   it('other failures name the status', async () => {

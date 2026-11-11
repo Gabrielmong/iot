@@ -47,8 +47,16 @@ export class GitHub {
     } catch {
       throw new GitHubError("Can't reach GitHub");
     }
-    if (res.status === 401 || res.status === 403) {
-      throw new GitHubError('GitHub token expired or invalid', res.status);
+    if (res.status === 401) throw new GitHubError('GitHub token expired or invalid', res.status);
+    if (res.status === 403 || res.status === 429) {
+      // 403 is a missing token permission (the token itself is fine) unless it is the rate limit.
+      if (res.status === 429 || res.headers.get('x-ratelimit-remaining') === '0') {
+        throw new GitHubError('GitHub rate limit reached; trying again later', res.status);
+      }
+      throw new GitHubError(
+        'GitHub token is missing a permission: it needs Contents, Checks, Actions and Metadata: Read on this repo',
+        res.status,
+      );
     }
     if (!res.ok) throw new GitHubError(`GitHub answered ${res.status}`, res.status);
     return (await res.json()) as T;
