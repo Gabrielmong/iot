@@ -68,7 +68,7 @@ try {
     Copy-FromExistingInstall $From $layout -DryRun:$DryRun
 
     Write-Host '== 6-7. deployer.json'
-    if (-not $DryRun) { Test-NodeIsSystemWide $bins.node }
+    if (-not $DryRun) { Test-NodeIsSystemWide $bins.node; Assert-NodeVersion $bins.node }
     $tree = Get-InstalledDeployerTree $bins.git $layout.Repo -DryRun:$DryRun
     Write-DeployerConfig $layout $GitHubRepo $bins $tree -DryRun:$DryRun
 

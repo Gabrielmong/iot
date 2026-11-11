@@ -27,6 +27,15 @@ function Get-NodePath {
     $node.Source
 }
 
+# Stops unless node is 22.12 or newer: Prisma 7 needs it (22.11 fails in `prisma generate` with ERR_REQUIRE_ESM).
+function Assert-NodeVersion([string]$NodePath) {
+    $text = (& $NodePath -v).Trim()
+    $version = [version]($text.TrimStart('v') -replace '[^0-9.].*$', '')
+    if ($version -lt [version]'22.12') {
+        throw "node $text is too old: install Node 22.12 or newer (the current Node 22 LTS installer from nodejs.org), open a new shell and re-run."
+    }
+}
+
 # Stops unless node (symlinks resolved) is under Program Files (a dry run only warns). The service runs as
 # LocalService, so node must be a system-wide install (official MSI): a per-user one such as nvm exits at once there.
 function Test-NodeIsSystemWide([string]$NodePath, [switch]$DryRun) {

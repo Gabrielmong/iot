@@ -4,7 +4,7 @@ Home runs as a Windows service (`HomeControl`, via NSSM) on an always-on PC on y
 
 ## 1. Prepare the server PC
 
-1. Windows with **Node 22+** installed **system-wide** (the official MSI, into Program Files; not nvm/fnm/volta, which install per user), because the service runs as `NT AUTHORITY\LocalService` and must be able to run it. Also **pnpm** (run `corepack enable` from an elevated shell: the repo pins pnpm 9.15.9 in `package.json`, and corepack keeps it next to node in Program Files; `npm i -g pnpm` would install it into your user profile), **PostgreSQL** and **NSSM** (`choco install nssm`, from an admin shell). PostgreSQL over TCP on localhost works fine for LocalService.
+1. Windows with **Node 22.12 or newer** (the current Node 22 LTS) installed **system-wide** (the official MSI, into Program Files; not nvm/fnm/volta, which install per user), because the service runs as `NT AUTHORITY\LocalService` and must be able to run it. Also **pnpm** (run `corepack enable` from an elevated shell: the repo pins pnpm 9.15.9 in `package.json`, and corepack keeps it next to node in Program Files; `npm i -g pnpm` would install it into your user profile), **PostgreSQL** and **NSSM** (`choco install nssm`, from an admin shell). PostgreSQL over TCP on localhost works fine for LocalService.
 2. Create the database `home`. Create `home_test` only if you will run the tests there.
 3. Set the LAN adapter's network profile to **Private** (Settings > Network & internet > Wi-Fi/Ethernet > Properties). The firewall rules only apply to the Private profile.
 4. Clone the repo **outside OneDrive**, for example `C:\home-control`. OneDrive sync interferes with `node_modules` and logs.
