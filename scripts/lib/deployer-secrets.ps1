@@ -18,7 +18,7 @@ function Test-SecretPresent([string]$Path) { (Test-Path $Path) -and -not [string
 function Initialize-GitHubToken([string]$Root, [string]$File, [switch]$DryRun) {
     if (Test-SecretPresent $File) { Write-Host "GitHub token already stored at $File"; return }
     if ($DryRun) { Write-Host "[dry-run] Ask for the GitHub token (Read-Host -AsSecureString) and store it in $File (admins/SYSTEM only)"; return }
-    $secure = Read-Host 'GitHub fine-grained token (this repo; Contents, Checks, Actions, Metadata: read)' -AsSecureString
+    $secure = Read-Host 'GitHub fine-grained token (this repo; Contents, Actions, Metadata: read)' -AsSecureString
     $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
     try { $plain = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr) } finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
     if ([string]::IsNullOrWhiteSpace($plain)) { throw 'No token entered.' }

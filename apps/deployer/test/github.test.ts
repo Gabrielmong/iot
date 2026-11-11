@@ -14,7 +14,7 @@ function fake(handler: (url: string) => { status?: number; body?: unknown; heade
   return { impl, calls };
 }
 
-const runs = (...r: Array<{ status: string; conclusion: string | null }>) => ({ body: { check_runs: r } });
+const runs = (...r: Array<{ status: string; conclusion: string | null }>) => ({ body: { workflow_runs: r } });
 const done = (conclusion: string) => ({ status: 'completed', conclusion });
 
 describe('GitHub.checkState', () => {
@@ -23,17 +23,17 @@ describe('GitHub.checkState', () => {
     return new GitHub('o/r', 'tok', impl).checkState('abc');
   }
 
-  it('maps check runs', async () => {
+  it('maps workflow runs', async () => {
     expect(await state(runs())).toBe('none');
     expect(await state(runs(done('success'), { status: 'in_progress', conclusion: null }))).toBe('pending');
     expect(await state(runs(done('success'), done('failure')))).toBe('failure');
     expect(await state(runs(done('success'), done('skipped'), done('neutral')))).toBe('success');
   });
 
-  it('requests per_page=100', async () => {
+  it('asks Actions for the runs of that commit (Actions: Read; fine-grained tokens have no Checks permission)', async () => {
     const { impl, calls } = fake(() => runs());
     await new GitHub('o/r', 'tok', impl).checkState('abc');
-    expect(calls[0].url).toBe('https://api.github.com/repos/o/r/commits/abc/check-runs?per_page=100');
+    expect(calls[0].url).toBe('https://api.github.com/repos/o/r/actions/runs?head_sha=abc&per_page=100');
   });
 });
 
@@ -65,7 +65,7 @@ describe('GitHub requests', () => {
     const { impl } = fake(() => ({ status: 403, headers: { 'x-ratelimit-remaining': '4999' } }));
     const err = await new GitHub('o/r', 'secret', impl).checkState('abc').catch((e) => e);
     expect(err.message).toBe(
-      'GitHub token is missing a permission: it needs Contents, Checks, Actions and Metadata: Read on this repo',
+      'GitHub token is missing a permission: it needs Contents, Actions and Metadata: Read on this repo',
     );
     expect(err.status).toBe(403);
   });

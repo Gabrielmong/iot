@@ -54,7 +54,7 @@ export class GitHub {
         throw new GitHubError('GitHub rate limit reached; trying again later', res.status);
       }
       throw new GitHubError(
-        'GitHub token is missing a permission: it needs Contents, Checks, Actions and Metadata: Read on this repo',
+        'GitHub token is missing a permission: it needs Contents, Actions and Metadata: Read on this repo',
         res.status,
       );
     }
@@ -72,11 +72,15 @@ export class GitHub {
     return res.commits.map(toCommit).reverse();
   }
 
+  /**
+   * CI result from GitHub Actions workflow runs. (Fine-grained personal tokens can't get the Checks permission
+   * that the check-runs API needs; Actions: Read is available.)
+   */
   async checkState(sha: string): Promise<CheckState> {
-    const res = await this.get<{ check_runs: Array<{ status: string; conclusion: string | null }> }>(
-      `/commits/${sha}/check-runs?per_page=100`,
+    const res = await this.get<{ workflow_runs: Array<{ status: string; conclusion: string | null }> }>(
+      `/actions/runs?head_sha=${sha}&per_page=100`,
     );
-    const runs = res.check_runs;
+    const runs = res.workflow_runs;
     if (runs.length === 0) return 'none';
     if (runs.some((r) => r.status !== 'completed')) return 'pending';
     if (runs.some((r) => !r.conclusion || !OK_CONCLUSIONS.has(r.conclusion))) return 'failure';

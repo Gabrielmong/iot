@@ -132,7 +132,7 @@ Cameras (Stage 2):
 
 ## 8. Deploying automatically
 
-The Deploys page (Admin) points here ("Deploying in docs/RUNNING.md"). A second Windows service, **HomeDeployer** (runs as LocalSystem), polls a private GitHub repo every 2 minutes. It deploys the newest commit on `main` whose GitHub checks are all green: it builds into `C:\HomeControl\releases\<short-sha>\`, backs up the database, applies migrations, switches the `C:\HomeControl\current` junction that the `HomeControl` service runs from, restarts it and waits up to 60 s for the app to answer. A failed commit is not retried by itself (use **Deploy now**).
+The Deploys page (Admin) points here ("Deploying in docs/RUNNING.md"). A second Windows service, **HomeDeployer** (runs as LocalSystem), polls a private GitHub repo every 2 minutes. It deploys the newest commit on `main` whose GitHub Actions runs are all green: it builds into `C:\HomeControl\releases\<short-sha>\`, backs up the database, applies migrations, switches the `C:\HomeControl\current` junction that the `HomeControl` service runs from, restarts it and waits up to 60 s for the app to answer. A failed commit is not retried by itself (use **Deploy now**).
 
 Layout under `C:\HomeControl`: `repo\` (clone), `releases\`, `current\` (junction), `shared\` (`.env`, `logs\`, `tools-cache\`, `pnpm-store\`), `deployer\` (helper app, config, tokens, history, event logs, `backups\`).
 
@@ -149,7 +149,7 @@ Wait for the CI run on `main` to go green; the helper only deploys green commits
 
 ### Create the token
 
-GitHub > Settings > Developer settings > Personal access tokens > **Fine-grained tokens**. Resource owner: you; **Only select repositories**: this repo only; Repository permissions: **Contents: Read**, **Checks: Read**, **Actions: Read**, **Metadata: Read** (nothing else). Choose an expiry (for example 1 year) and put a reminder in your calendar. When the token expires or is revoked, GitHub rejects it: the Deploys page shows the error and deploys stop (the app itself keeps running). Create a new token, delete `C:\HomeControl\deployer\github-token`, and re-run the setup script, which asks for it again.
+GitHub > Settings > Developer settings > Personal access tokens > **Fine-grained tokens**. Resource owner: you; **Only select repositories**: this repo only; Repository permissions: **Contents: Read**, **Actions: Read** (the helper reads CI results from the GitHub Actions runs; fine-grained tokens have no Checks permission), **Metadata: Read** (nothing else). Choose an expiry (for example 1 year) and put a reminder in your calendar. When the token expires or is revoked, GitHub rejects it: the Deploys page shows the error and deploys stop (the app itself keeps running). Create a new token, delete `C:\HomeControl\deployer\github-token`, and re-run the setup script, which asks for it again.
 
 ### Run setup
 
