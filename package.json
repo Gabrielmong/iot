@@ -13,5 +13,15 @@
     "concurrently": "^10.0.6",
     "cross-env": "^10.1.0",
     "typescript": "^7.0.2"
+  },
+  "packageManager": "pnpm@9.15.9",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@apollo/protobufjs",
+      "@prisma/engines",
+      "esbuild",
+      "prisma",
+      "protobufjs"
+    ]
   }
 }

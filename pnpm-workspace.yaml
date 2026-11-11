@@ -1,3 +1,11 @@
 packages:
   - "packages/*"
   - "apps/*"
+
+# pnpm 10+ runs no dependency build scripts unless listed (pnpm 9 reads package.json "pnpm.onlyBuiltDependencies").
+onlyBuiltDependencies:
+  - "@apollo/protobufjs"
+  - "@prisma/engines"
+  - esbuild
+  - prisma
+  - protobufjs
