@@ -25,7 +25,13 @@ function Assert-InstallRoot($Layout) {
             if ($f.Strict) { Assert-SecretAcl $f.Path -LocalServiceRead:$f.LocalServiceRead } else { Assert-AdminOwned $f.Path }
         }
     } catch {
-        throw "$root exists but isn't a locked HomeControl install; move it aside and re-run. ($($_.Exception.Message))"
+        $why = $_.Exception.Message
+        $hint = ''
+        if ($why -match 'unexpected access for (S-1-5-21-[\d-]+)') {
+            # Explorer's "You don't have permission... Continue" permanently grants the signed-in user Full Control.
+            $hint = " A user account has access, usually from clicking Continue in File Explorer. If that was you, remove it with: icacls $root /remove:g *$($Matches[1]) /T /C /Q ; then re-run. Browse $root from an elevated PowerShell instead."
+        }
+        throw "$root exists but isn't a locked HomeControl install; move it aside and re-run. ($why)$hint"
     }
     $true
 }
