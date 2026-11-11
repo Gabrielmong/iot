@@ -15,7 +15,8 @@ describe('xmlElements', () => {
     const t0 = performance.now();
     expect(xmlElements(unclosed, 'Uri')).toEqual([]);
     expect(xmlElements(`${'<Uri>'.repeat(50_000)}</Uri>`, 'Uri')).toHaveLength(1);
-    expect(performance.now() - t0).toBeLessThan(100);
+    // A quadratic scan takes many seconds here; 1 s leaves room for a busy CI runner (100 ms flaked at 112 ms).
+    expect(performance.now() - t0).toBeLessThan(1000);
   });
 
   it('caps how many elements it returns', () => {
