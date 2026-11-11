@@ -21,7 +21,7 @@ $repo = (Resolve-Path "$PSScriptRoot\..").Path
 $logs = Join-Path $repo 'logs'
 $envFile = Join-Path $repo '.env'
 $node = Get-NodePath
-Test-NodeIsSystemWide $node
+Test-NodeIsSystemWide $node -DryRun:$DryRun
 
 # Deploys go through HomeDeployer once it exists; running this script would fight it over the service.
 if (Get-Service HomeDeployer -ErrorAction SilentlyContinue) {

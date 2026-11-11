@@ -27,13 +27,14 @@ function Get-NodePath {
     $node.Source
 }
 
-# Warns unless node (symlinks resolved) is under Program Files. The service runs as LocalService, so
-# node must be a system-wide install (official MSI), not a per-user one such as nvm.
-function Test-NodeIsSystemWide([string]$NodePath) {
+# Stops unless node (symlinks resolved) is under Program Files (a dry run only warns). The service runs as
+# LocalService, so node must be a system-wide install (official MSI): a per-user one such as nvm exits at once there.
+function Test-NodeIsSystemWide([string]$NodePath, [switch]$DryRun) {
     $item = Get-Item $NodePath
     $resolved = if ($item.Target) { @($item.Target)[0] } else { $NodePath }
     $roots = @($env:ProgramFiles, ${env:ProgramFiles(x86)}) | Where-Object { $_ }
     if (-not ($roots | Where-Object { $resolved.StartsWith($_ + '', [StringComparison]::OrdinalIgnoreCase) })) {
-        Write-Warning "node resolves to $resolved, outside Program Files. Install Node system-wide (official MSI) so the LocalService account can run it."
+        $msg = "node resolves to $resolved, outside Program Files. The service account can't run a per-user Node (nvm, fnm, volta): install Node 22 system-wide (official MSI), open a new shell so ``node`` finds it, and re-run."
+        if ($DryRun) { Write-Warning $msg } else { throw $msg }
     }
 }

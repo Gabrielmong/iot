@@ -17,7 +17,7 @@ $ErrorActionPreference = 'Stop'
 . "$PSScriptRoot\lib\service-settings.ps1"
 Assert-Admin -DryRun:$DryRun
 if (-not $DryRun -and -not (Get-Command nssm -ErrorAction SilentlyContinue)) { throw 'nssm was not found. Run: choco install nssm' }
-Test-NodeIsSystemWide $Node
+Test-NodeIsSystemWide $Node -DryRun:$DryRun
 
 $current = Join-Path $Root 'current'
 $logs = Join-Path $Root 'shared\logs'
