@@ -13,7 +13,7 @@ export default function App() {
   return (
     <ApolloProvider client={client}>
       <ThemeProvider theme={theme} defaultMode="dark">
-        <CssBaseline />
+        <CssBaseline enableColorScheme />
         {/* Movement is dropped (fades kept) for people who ask the OS for reduced motion. */}
         <MotionConfig reducedMotion="user">
           <BrowserRouter>

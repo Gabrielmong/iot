@@ -7,6 +7,7 @@ const success = { main: palette.on, contrastText: palette.night }
 /**
  * "House at night": deep indigo surfaces, lamp-amber accent, green for things that are on.
  * Device names and headings use Bricolage Grotesque; everything else uses Figtree.
+ * Dark only: with a light scheme too, MUI follows the OS setting and a light-mode PC got dark text on the night background.
  */
 export const theme = createTheme({
   colorSchemes: {
@@ -20,7 +21,6 @@ export const theme = createTheme({
         divider: alpha(palette.line, 0.14),
       },
     },
-    light: { palette: { success } },
   },
   defaultColorScheme: 'dark',
   cssVariables: true,
