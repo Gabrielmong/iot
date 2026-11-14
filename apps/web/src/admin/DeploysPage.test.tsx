@@ -134,6 +134,33 @@ describe('DeploysPage', () => {
   })
 })
 
+describe('DeploysPage on a phone', () => {
+  beforeEach(() => {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: query.includes('max-width'),
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+    }))
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('opens the log under the tapped row and closes it on a second tap', async () => {
+    setup(statusReply({ events: [OLD, NEWER] }))
+    const history = await screen.findByRole('list', { name: 'Deploy history' })
+    await waitFor(() => expect(within(history).getByLabelText('Deploy log')).toHaveTextContent('log of e2'))
+
+    fireEvent.click(screen.getByText('Deploy abc1234'))
+    await waitFor(() => expect(within(history).getByLabelText('Deploy log')).toHaveTextContent('log of e1'))
+    expect(screen.getAllByLabelText('Deploy log')).toHaveLength(1)
+
+    fireEvent.click(screen.getByText('Deploy abc1234'))
+    expect(screen.queryByLabelText('Deploy log')).not.toBeInTheDocument()
+  })
+})
+
 describe('DeploysPage while the app restarts', () => {
   beforeEach(() => vi.useFakeTimers({ shouldAdvanceTime: true }))
   afterEach(() => vi.useRealTimers())

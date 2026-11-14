@@ -1,9 +1,9 @@
+import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import ListItem from '@mui/material/ListItem'
 import ListItemButton from '@mui/material/ListItemButton'
-import ListItemIcon from '@mui/material/ListItemIcon'
-import ListItemText from '@mui/material/ListItemText'
 import Tooltip from '@mui/material/Tooltip'
+import Typography from '@mui/material/Typography'
 import type { DeployEvent } from '../data/useDeployStatus'
 import { eventTitle, formatDuration, relativeTime, statusIcon, whoLabel } from './deployLabels'
 
@@ -16,8 +16,11 @@ type Props = {
   onRollback: () => void
 }
 
-function secondaryLine(event: DeployEvent): string {
-  const parts = [event.message, whoLabel(event.by), relativeTime(event.startedAt)]
+/** Room kept at the end of the details line for the rollback button. */
+const ROLLBACK_ROOM = 136
+
+function metaLine(event: DeployEvent): string {
+  const parts = [whoLabel(event.by), relativeTime(event.startedAt)]
   if (event.finishedAt) parts.push(formatDuration(event.startedAt, event.finishedAt))
   if (event.detail) parts.push(event.detail)
   return parts.filter(Boolean).join(' · ')
@@ -27,26 +30,53 @@ function RollbackButton({ event, disabled, onClick }: { event: DeployEvent; disa
   const blocked = event.rollbackBlockedReason
   return (
     <Tooltip title={blocked ?? ''}>
-      <span>
+      <Box component="span" sx={{ position: 'absolute', right: 8, bottom: 6 }}>
         <Button size="small" disabled={disabled || Boolean(blocked)} onClick={onClick}>Roll back to this</Button>
-      </span>
+      </Box>
     </Tooltip>
   )
 }
 
-/** One history entry: status icon, title and details, with a rollback action where allowed. */
+/**
+ * One history entry: status icon, title and commit message on one line, the details underneath,
+ * and a rollback action at the end of the details line where allowed.
+ */
 export function DeployEventRow({ event, selected, disabled, onSelect, onRollback }: Props) {
   const showRollback = event.canRollback || Boolean(event.rollbackBlockedReason)
   return (
-    <ListItem
-      disablePadding
-      divider
-      secondaryAction={showRollback ? <RollbackButton event={event} disabled={disabled} onClick={onRollback} /> : undefined}
-    >
-      <ListItemButton selected={selected} onClick={onSelect} sx={{ pr: showRollback ? 20 : 2 }}>
-        <ListItemIcon sx={{ minWidth: 36 }}>{statusIcon(event.status)}</ListItemIcon>
-        <ListItemText primary={eventTitle(event)} secondary={secondaryLine(event)} />
+    <ListItem disablePadding divider sx={{ position: 'relative', display: 'block' }}>
+      <ListItemButton
+        selected={selected}
+        onClick={onSelect}
+        aria-current={selected ? 'true' : undefined}
+        sx={{
+          alignItems: 'flex-start',
+          gap: 1.5,
+          py: 1.25,
+          '&.Mui-selected, &.Mui-selected:hover': {
+            bgcolor: 'action.hover',
+            boxShadow: (t) => `inset 3px 0 0 ${t.palette.primary.main}`,
+          },
+        }}
+      >
+        <Box sx={{ display: 'flex', mt: '2px' }}>{statusIcon(event.status)}</Box>
+        <Box sx={{ minWidth: 0, flex: 1 }}>
+          <Typography noWrap title={event.message ?? undefined}>
+            <Box component="span" sx={{ fontWeight: 600 }}>{eventTitle(event)}</Box>
+            {event.message && (
+              <Box component="span" sx={{ color: 'text.secondary' }}>{` — ${event.message}`}</Box>
+            )}
+          </Typography>
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            sx={[{ mt: 0.25 }, showRollback && { pr: `${ROLLBACK_ROOM}px`, minHeight: 30, display: 'flex', alignItems: 'center' }]}
+          >
+            {metaLine(event)}
+          </Typography>
+        </Box>
       </ListItemButton>
+      {showRollback && <RollbackButton event={event} disabled={disabled} onClick={onRollback} />}
     </ListItem>
   )
 }
