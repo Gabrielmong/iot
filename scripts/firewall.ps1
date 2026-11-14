@@ -17,6 +17,7 @@ $rules = @(
     @{ Name = 'Home Control web (TCP 4000)';        Protocol = 'TCP'; Ports = @(4000) },
     @{ Name = 'Home Control Tuya (UDP 6666/6667/7000)'; Protocol = 'UDP'; Ports = @(6666, 6667, 7000) },
     @{ Name = 'Home Control Govee replies (UDP 4002)';  Protocol = 'UDP'; Ports = @(4002) },
+    @{ Name = 'Home Control mDNS (UDP 5353)';       Protocol = 'UDP'; Ports = @(5353) },
     # go2rtc WebRTC media: one rule per protocol, sharing a display name, scoped to go2rtc rather than node.
     @{ Name = 'HomeControl go2rtc WebRTC'; Protocol = 'UDP'; Ports = @(8555); Program = $go2rtc },
     @{ Name = 'HomeControl go2rtc WebRTC'; Protocol = 'TCP'; Ports = @(8555); Program = $go2rtc }

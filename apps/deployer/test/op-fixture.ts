@@ -43,6 +43,7 @@ function tempPaths(root: string): Paths {
     releases: j('releases'),
     current: j('current'),
     shared: j('shared'),
+    android: j('shared', 'android'),
     envFile: j('shared', '.env'),
     logs: j('shared', 'logs'),
     toolsCache: j('shared', 'tools-cache'),

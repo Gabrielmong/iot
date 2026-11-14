@@ -43,6 +43,7 @@ export interface HarnessOptions {
   /** Default: the deploy helper is unavailable. */
   deployer?: DeployerClient;
   webDist?: string;
+  androidApkDir?: string;
   /** Camera streaming fakes; by default every camera is unavailable. */
   cameras?: CameraServices;
   mseAuthTimeoutMs?: number;
@@ -111,7 +112,7 @@ export class ApiHarness {
       deployer: opts.deployer ?? unavailableDeployer,
       log,
     };
-    h.server = await startServer(deps, { port: 0, host: "127.0.0.1", log, sessionCheckMs: opts.sessionCheckMs, webDist: opts.webDist, mseAuthTimeoutMs: opts.mseAuthTimeoutMs, viewerSweepMs: opts.viewerSweepMs });
+    h.server = await startServer(deps, { port: 0, host: "127.0.0.1", log, sessionCheckMs: opts.sessionCheckMs, webDist: opts.webDist, androidApkDir: opts.androidApkDir, mseAuthTimeoutMs: opts.mseAuthTimeoutMs, viewerSweepMs: opts.viewerSweepMs });
     return h;
   }
 

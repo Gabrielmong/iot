@@ -1,5 +1,6 @@
 import TextField from '@mui/material/TextField'
 import { useState } from 'react'
+import { GetAndroidAppLink } from '../android/GetAndroidAppLink'
 import { FormDialog } from '../admin/common/FormDialog'
 import { AvatarColorPicker } from '../avatars/AvatarColorPicker'
 import { AvatarImagePicker } from '../avatars/AvatarImagePicker'
@@ -30,6 +31,7 @@ export function ProfileDialog({ profile, hasPin = false, pinOnly = false, onClos
       <AvatarImagePicker name={form.name} color={form.avatarColor} value={form.avatarImage} onChange={(avatarImage) => patch({ avatarImage })} />
       <AvatarColorPicker value={form.avatarColor} onChange={(avatarColor) => patch({ avatarColor })} />
       {hasPin && <ChangePinSection />}
+      <GetAndroidAppLink />
     </FormDialog>
   )
 }

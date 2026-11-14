@@ -14,7 +14,8 @@ function fake(handler: (url: string) => { status?: number; body?: unknown; heade
   return { impl, calls };
 }
 
-const runs = (...r: Array<{ status: string; conclusion: string | null }>) => ({ body: { workflow_runs: r } });
+type Run = { name?: string; status: string; conclusion: string | null };
+const runs = (...r: Run[]) => ({ body: { workflow_runs: r.map((run) => ({ ...run, name: run.name ?? 'CI' })) } });
 const done = (conclusion: string) => ({ status: 'completed', conclusion });
 
 describe('GitHub.checkState', () => {
@@ -28,6 +29,20 @@ describe('GitHub.checkState', () => {
     expect(await state(runs(done('success'), { status: 'in_progress', conclusion: null }))).toBe('pending');
     expect(await state(runs(done('success'), done('failure')))).toBe('failure');
     expect(await state(runs(done('success'), done('skipped'), done('neutral')))).toBe('success');
+  });
+
+  it('only the CI workflow counts; other workflows (the Android build) are ignored', async () => {
+    const ci = { name: 'CI', ...done('success') };
+    expect(await state(runs(ci, { name: 'Android', status: 'in_progress', conclusion: null }))).toBe('success');
+    expect(await state(runs(ci, { name: 'Android', ...done('failure') }))).toBe('success');
+    expect(await state(runs({ name: 'Android', ...done('success') }))).toBe('none');
+  });
+
+  it('waits on the configured workflow name', async () => {
+    const { impl } = fake(() =>
+      runs({ name: 'Build', ...done('success') }, { name: 'CI', status: 'in_progress', conclusion: null }),
+    );
+    expect(await new GitHub('o/r', 'tok', impl, 'Build').checkState('abc')).toBe('success');
   });
 
   it('asks Actions for the runs of that commit (Actions: Read; fine-grained tokens have no Checks permission)', async () => {
@@ -129,5 +144,79 @@ describe('GitHub.treeSha', () => {
   it('missing entry is undefined', async () => {
     const { impl } = fake(() => ({ body: [{ name: 'deployer', type: 'file', sha: 'x' }] }));
     expect(await new GitHub('o/r', 't', impl).treeSha('abc', 'apps/deployer')).toBeUndefined();
+  });
+});
+
+describe('GitHub.latestAndroidRelease', () => {
+  const rel = (tag: string, ...assets: Array<[string, number]>) => ({
+    tag_name: tag,
+    assets: assets.map(([name, id]) => ({ name, id })),
+  });
+  async function latest(releases: unknown[]) {
+    const { impl, calls } = fake(() => ({ body: releases }));
+    return { out: await new GitHub('o/r', 't', impl).latestAndroidRelease(), calls };
+  }
+
+  it('picks the highest android-v<n> release that has home.apk', async () => {
+    const { out, calls } = await latest([
+      rel('v1.2', ['home.apk', 1]),
+      rel('android-vx', ['home.apk', 2]),
+      rel('android-v9', ['home.apk', 9]),
+      rel('android-v12', ['home.apk', 12]),
+      rel('android-v20', ['other.apk', 20]),
+    ]);
+    expect(out).toEqual({ versionCode: 12, assetId: 12 });
+    expect(calls[0].url).toBe('https://api.github.com/repos/o/r/releases?per_page=30');
+  });
+
+  it('is undefined when nothing matches', async () => {
+    expect((await latest([rel('v1', ['home.apk', 1])])).out).toBeUndefined();
+  });
+});
+
+describe('GitHub.downloadAsset', () => {
+  it('asks for the octet-stream and fetches the redirect without the token', async () => {
+    const calls: Call[] = [];
+    const impl = (async (url: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url: String(url), init });
+      if (calls.length === 1) return new Response(null, { status: 302, headers: { location: 'https://cdn.example/x' } });
+      return new Response(new Uint8Array([1, 2, 3]), { status: 200 });
+    }) as typeof fetch;
+    const out = await new GitHub('o/r', 'secret', impl).downloadAsset(77);
+    expect([...out]).toEqual([1, 2, 3]);
+    expect(calls[0].url).toBe('https://api.github.com/repos/o/r/releases/assets/77');
+    const first = calls[0].init!;
+    expect(first.redirect).toBe('manual');
+    expect((first.headers as Record<string, string>).Accept).toBe('application/octet-stream');
+    expect((first.headers as Record<string, string>).Authorization).toBe('Bearer secret');
+    expect(calls[1].url).toBe('https://cdn.example/x');
+    expect(JSON.stringify(calls[1].init ?? {})).not.toContain('secret');
+    expect(JSON.stringify(calls[1].init ?? {})).not.toContain('Authorization');
+  });
+
+  it('accepts a direct 200', async () => {
+    const impl = (async () => new Response(new Uint8Array([9]), { status: 200 })) as typeof fetch;
+    expect([...(await new GitHub('o/r', 't', impl).downloadAsset(1))]).toEqual([9]);
+  });
+});
+
+describe('GitHub timeouts', () => {
+  it('passes an abort signal to the API call, the asset call and the redirect fetch', async () => {
+    const signals: Array<AbortSignal | null | undefined> = [];
+    const impl = (async (url: string | URL | Request, init?: RequestInit) => {
+      signals.push(init?.signal);
+      if (signals.length === 1) return new Response(null, { status: 302, headers: { location: 'https://cdn.example/x' } });
+      return new Response(new Uint8Array([1]), { status: 200 });
+    }) as typeof fetch;
+    await new GitHub('o/r', 't', impl).downloadAsset(1);
+    expect(signals).toHaveLength(2);
+    expect(signals.every((s) => s instanceof AbortSignal)).toBe(true);
+  });
+
+  it('a fetch that aborts surfaces as a GitHubError', async () => {
+    const impl = (async () => {
+      throw new DOMException('aborted', 'TimeoutError');
+    }) as typeof fetch;
+    await expect(new GitHub('o/r', 't', impl).latestAndroidRelease()).rejects.toBeInstanceOf(GitHubError);
   });
 });

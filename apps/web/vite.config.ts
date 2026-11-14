@@ -12,6 +12,8 @@ export default defineConfig({
       '/graphql': { target: SERVER, ws: true, changeOrigin: true },
       // Camera thumbnails, WebRTC signalling and the MSE WebSocket.
       '/api': { target: SERVER, ws: true, changeOrigin: true },
+      // The Android app download.
+      '/app': { target: SERVER, changeOrigin: true },
     },
   },
   test: {

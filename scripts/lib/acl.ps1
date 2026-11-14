@@ -55,6 +55,14 @@ function Grant-LogsAccess([string]$Logs, [switch]$DryRun) {
     } -DryRun:$DryRun
 }
 
+# A folder the service only reads (e.g. the published Android app); inheritable, no /T for the same reason as logs.
+function Grant-ReadAccess([string]$Path, [switch]$DryRun) {
+    Invoke-Step "icacls $Path /grant LocalService read+execute" {
+        $result = Invoke-IcaclsTolerant @($Path, '/grant', "$($script:LocalService):(OI)(CI)RX")
+        if ($result.ExitCode -ne 0) { throw "icacls failed (exit code $($result.ExitCode)): $($result.Output -join ' ')" }
+    } -DryRun:$DryRun
+}
+
 # .env holds secrets: admins, SYSTEM and LocalService only.
 function Protect-EnvFile([string]$EnvFile, [switch]$DryRun) {
     Invoke-Step "icacls $EnvFile /inheritance:r (admins/SYSTEM full, LocalService read)" {

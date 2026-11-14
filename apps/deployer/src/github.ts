@@ -20,6 +20,9 @@ interface ApiCommit {
   commit: { message: string; committer: { date: string } };
 }
 
+const API_TIMEOUT_MS = 30_000;
+const DOWNLOAD_TIMEOUT_MS = 120_000;
+
 const OK_CONCLUSIONS = new Set(['success', 'skipped', 'neutral']);
 
 function toCommit(c: ApiCommit): Commit {
@@ -31,18 +34,23 @@ export class GitHub {
     private readonly repo: string,
     private readonly token: string,
     private readonly fetchImpl: typeof fetch = fetch,
+    private readonly ciWorkflowName = 'CI',
   ) {}
 
-  private async get<T>(path: string): Promise<T> {
+  private async request(path: string, headers: Record<string, string>, redirect?: 'manual',
+    timeoutMs = API_TIMEOUT_MS,
+  ): Promise<Response> {
     let res: Response;
     try {
       res = await this.fetchImpl(`https://api.github.com/repos/${this.repo}${path}`, {
         headers: {
           Authorization: `Bearer ${this.token}`,
-          Accept: 'application/vnd.github+json',
           'X-GitHub-Api-Version': '2022-11-28',
           'User-Agent': 'home-deployer',
+          ...headers,
         },
+        signal: AbortSignal.timeout(timeoutMs),
+        ...(redirect ? { redirect } : {}),
       });
     } catch {
       throw new GitHubError("Can't reach GitHub");
@@ -58,6 +66,11 @@ export class GitHub {
         res.status,
       );
     }
+    return res;
+  }
+
+  private async get<T>(path: string): Promise<T> {
+    const res = await this.request(path, { Accept: 'application/vnd.github+json' });
     if (!res.ok) throw new GitHubError(`GitHub answered ${res.status}`, res.status);
     return (await res.json()) as T;
   }
@@ -77,10 +90,11 @@ export class GitHub {
    * that the check-runs API needs; Actions: Read is available.)
    */
   async checkState(sha: string): Promise<CheckState> {
-    const res = await this.get<{ workflow_runs: Array<{ status: string; conclusion: string | null }> }>(
+    const res = await this.get<{ workflow_runs: Array<{ name: string; status: string; conclusion: string | null }> }>(
       `/actions/runs?head_sha=${sha}&per_page=100`,
     );
-    const runs = res.workflow_runs;
+    // Other workflows (e.g. the Android build) must not block or fail a deploy.
+    const runs = res.workflow_runs.filter((r) => r.name === this.ciWorkflowName);
     if (runs.length === 0) return 'none';
     if (runs.some((r) => r.status !== 'completed')) return 'pending';
     if (runs.some((r) => !r.conclusion || !OK_CONCLUSIONS.has(r.conclusion))) return 'failure';
@@ -95,5 +109,43 @@ export class GitHub {
       `/contents/${parent}?ref=${sha}`,
     );
     return entries.find((e) => e.name === name && e.type === 'dir')?.sha;
+  }
+
+  /** The newest `android-v<versionCode>` release that carries a `home.apk` asset. */
+  async latestAndroidRelease(): Promise<{ versionCode: number; assetId: number } | undefined> {
+    const releases = await this.get<Array<{ tag_name: string; assets: Array<{ name: string; id: number }> }>>(
+      '/releases?per_page=30',
+    );
+    let best: { versionCode: number; assetId: number } | undefined;
+    for (const r of releases) {
+      const m = /^android-v(\d+)$/.exec(r.tag_name);
+      const asset = r.assets.find((a) => a.name === 'home.apk');
+      if (!m || !asset) continue;
+      const versionCode = Number(m[1]);
+      if (!best || versionCode > best.versionCode) best = { versionCode, assetId: asset.id };
+    }
+    return best;
+  }
+
+  /** The asset's bytes. The redirect target (a signed storage URL) is fetched without the token. */
+  async downloadAsset(assetId: number): Promise<Buffer> {
+    const res = await this.request(
+      `/releases/assets/${assetId}`,
+      { Accept: 'application/octet-stream' },
+      'manual',
+      DOWNLOAD_TIMEOUT_MS,
+    );
+    let body = res;
+    if (res.status >= 300 && res.status < 400) {
+      const location = res.headers.get('location');
+      if (!location) throw new GitHubError(`GitHub answered ${res.status} without a location`, res.status);
+      try {
+        body = await this.fetchImpl(location, { signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS) });
+      } catch {
+        throw new GitHubError("Can't download the APK");
+      }
+    }
+    if (!body.ok) throw new GitHubError(`GitHub answered ${body.status}`, body.status);
+    return Buffer.from(await body.arrayBuffer());
   }
 }

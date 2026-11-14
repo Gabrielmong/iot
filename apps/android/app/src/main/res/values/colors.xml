@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The web app's night palette background. -->
+    <color name="night">#0c1120</color>
+    <color name="ic_launcher_background">#0c1120</color>
+</resources>

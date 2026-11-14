@@ -31,6 +31,16 @@ class FakeGitHub {
   async treeSha(): Promise<string | undefined> {
     return this.tree;
   }
+  releaseError?: Error;
+  releaseCalls = 0;
+  async latestAndroidRelease(): Promise<{ versionCode: number; assetId: number } | undefined> {
+    this.releaseCalls += 1;
+    if (this.releaseError) throw this.releaseError;
+    return undefined;
+  }
+  async downloadAsset(): Promise<Buffer> {
+    return Buffer.alloc(0);
+  }
 }
 
 /** Stub operations that record an event like the real ones; `hold` keeps a deploy in flight. */
@@ -84,6 +94,14 @@ describe('Deployer.tick', () => {
     const [, c, by] = stub.ops.deployCommit.mock.calls[0]!;
     expect(c).toEqual(commit(NEW, 'new feature'));
     expect(by).toBe('auto');
+    expect((await d.status()).lastCheck).toEqual({ at: f.ctx.now().toISOString() });
+  });
+
+  it('an APK sync failure changes neither lastCheck nor the deploy pick', async () => {
+    gh.releaseError = new Error('releases unreachable');
+    await d.tick();
+    expect(gh.releaseCalls).toBe(1);
+    expect(stub.ops.deployCommit).toHaveBeenCalledTimes(1);
     expect((await d.status()).lastCheck).toEqual({ at: f.ctx.now().toISOString() });
   });
 

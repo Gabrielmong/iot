@@ -206,3 +206,52 @@ Remove the helper service first (`install-service.ps1` refuses to run while it e
 ### Delete the old install
 
 After the first auto-deploy succeeds and the app works from `C:\HomeControl\current`, the old install folder (for example `C:\home-control`) is no longer used. Its `.env` now lives in `C:\HomeControl\shared`. Keep its `logs\` if you want the old log history, then delete the folder.
+
+## 9. Android app
+
+An Android app ("Home", a thin WebView around the web app) is built and signed by the `Android` GitHub workflow on pushes to `main` that change `apps/android/**` or the workflow file itself, published as release `android-v<versionCode>` (versionCode is 1000 + the workflow's run number) with the asset `home.apk`. The deploy helper downloads the newest one into `<install root>\shared\android\` on its normal poll, and the server offers it at `/app/home.apk`.
+
+### One-time: create the signing key
+
+1. Create the key (keep the passwords):
+
+   ```
+   keytool -genkeypair -v -keystore home.jks -alias home -keyalg RSA -keysize 4096 -validity 10000
+   ```
+
+2. Base64 it, e.g. in PowerShell: `[Convert]::ToBase64String([IO.File]::ReadAllBytes('home.jks'))`.
+3. In the GitHub repo, add the Actions secrets `HOME_KEYSTORE_BASE64` (the base64 text), `HOME_KEYSTORE_PASSWORD`, `HOME_KEY_ALIAS` (`home`) and `HOME_KEY_PASSWORD`. Until all four exist the workflow doesn't publish an APK.
+4. **Keep `home.jks` backed up** somewhere safe. Losing it means uninstalling and reinstalling the app on every phone.
+
+### One-time: server steps
+
+Run these as Administrator on the server PC, in an elevated PowerShell in a clone of the repo:
+
+```powershell
+.\scripts\install-deployer.ps1 -Root C:\HomeControl -GitHubRepo <owner>/<name>   # same arguments as in section 8
+.\scripts\firewall.ps1
+```
+
+`scripts\install-deployer.ps1` updates the helper so it waits only for the `CI` workflow and syncs the newest APK into `<install root>\shared\android\`. It doesn't set anything on the `HomeControl` service: the service gets `ANDROID_APK_DIR` from `apply-service-settings` on the next deploy. `scripts\firewall.ps1` now also opens UDP 5353 for mDNS, which the app uses to find the server.
+
+#### First rollout order
+
+The helper that is installed before this change waits for every workflow on a commit, including `Android`. So for the first rollout:
+
+1. Push the branch and open a PR. The `pull_request` trigger runs both `CI` and `Android`; confirm `Android` is green before merging.
+2. Merge.
+3. Right after the merge, re-run `scripts\install-deployer.ps1` as Administrator (as above), so the helper waits only on `CI` from then on.
+4. Run `scripts\firewall.ps1` as Administrator.
+
+### Installing on a phone
+
+1. Open Home in Chrome on the phone and tap **Get the Android app** (on the login screen or in your profile).
+2. Allow **Install unknown apps** for Chrome when asked, then install.
+3. Open Home. It checks the saved address, otherwise searches the home Wi-Fi for about 5 seconds. When the server has a newer APK, an **Update available** bar appears.
+
+The first release-signed update won't install over a debug build: uninstall the debug build once.
+
+### Troubleshooting
+
+- **"Home couldn't be reached":** tap **Retry**, or **Settings** and enter the address, e.g. `192.168.0.100:4000`. Long-pressing the app icon also offers a **Server settings** shortcut.
+- **No "Get the Android app" link:** the server has no APK yet. Check the `Android` workflow ran with all four secrets set and that the deploy helper has polled since.
