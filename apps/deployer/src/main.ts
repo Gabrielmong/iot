@@ -22,7 +22,7 @@ async function main(): Promise<void> {
   const ctx = realContext(config, paths, tokens);
   await recoverOnStart(ctx);
 
-  const deployer = new Deployer(ctx, new GitHub(config.githubRepo, tokens.github));
+  const deployer = new Deployer(ctx, new GitHub(config.githubRepo, tokens.github, undefined, config.ciWorkflowName));
   const server: Server = await startApi(deployer, { token: tokens.api, logsDir: paths.eventLogs, port: config.apiPort });
   deployer.start();
   console.log(`HomeDeployer listening on 127.0.0.1:${config.apiPort}`);

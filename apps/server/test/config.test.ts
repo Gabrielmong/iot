@@ -66,6 +66,14 @@ describe("loadConfig", () => {
   });
 });
 
+describe("loadConfig android", () => {
+  const base = { DATABASE_URL: "x", SECRET_KEY: goodKey };
+  it("leaves the APK folder unset, and reads ANDROID_APK_DIR", () => {
+    expect(loadConfig(base).androidApkDir).toBeUndefined();
+    expect(loadConfig({ ...base, ANDROID_APK_DIR: "D:/x/shared/android" }).androidApkDir).toBe("D:/x/shared/android");
+  });
+});
+
 describe("loadConfig deployer", () => {
   const base = { DATABASE_URL: "x", SECRET_KEY: goodKey };
   it("defaults the URL and leaves the token file unset", () => {

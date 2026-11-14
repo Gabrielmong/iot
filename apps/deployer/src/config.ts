@@ -11,6 +11,7 @@ export interface DeployerConfig {
   apiPort: number;
   serviceName: string;
   pollMs: number;
+  ciWorkflowName: string;
   ciTimeoutMs: number;
   keepReleases: number;
   keepBackups: number;
@@ -51,6 +52,7 @@ export interface Paths {
   releases: string;
   current: string;
   shared: string;
+  android: string;
   envFile: string;
   logs: string;
   toolsCache: string;
@@ -66,6 +68,7 @@ const DEFAULTS = {
   apiPort: 4100,
   serviceName: 'HomeControl',
   pollMs: 120_000,
+  ciWorkflowName: 'CI',
   ciTimeoutMs: 1_800_000,
   keepReleases: 5,
   keepBackups: 10,
@@ -94,6 +97,7 @@ export function pathsFor(root: string): Paths {
     releases: j(root, 'releases'),
     current: j(root, 'current'),
     shared,
+    android: j(shared, 'android'),
     envFile: j(shared, '.env'),
     logs: j(shared, 'logs'),
     toolsCache: j(shared, 'tools-cache'),

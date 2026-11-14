@@ -1,4 +1,5 @@
 import { actualRunning } from './actual-running.js';
+import { syncAndroidApk } from './android-apk.js';
 import type { Command } from './command.js';
 import { deployCommit } from './deploy.js';
 import type { Commit } from './github.js';
@@ -104,6 +105,7 @@ export class Deployer {
     try {
       const head = await github.head(ctx.config.branch);
       await this.checkHelper(head.sha);
+      await this.syncApk();
       const running = actualRunning(ctx)?.sha;
       const { failedShas } = ctx.history.state();
       const pick = await findPick(ctx, github, head, running, {
@@ -121,6 +123,15 @@ export class Deployer {
         console.error("Couldn't record the failed check:", saveError); // e.g. EPERM on history.json
       }
       return undefined;
+    }
+  }
+
+  /** Keeps the newest Android release in shared/android for the server to offer; never affects a check or a deploy. */
+  private async syncApk(): Promise<void> {
+    try {
+      await syncAndroidApk({ dir: this.ctx.paths.android, github: this.github, log: (m) => console.log(m) });
+    } catch (e) {
+      console.error('Android APK sync failed:', e);
     }
   }
 

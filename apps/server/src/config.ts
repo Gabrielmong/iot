@@ -21,6 +21,8 @@ export interface Config {
   deployerUrl: string;
   /** Its bearer-token file; no default (the service sets it). Unset: the helper counts as unavailable. */
   deployerTokenFile?: string;
+  /** Folder holding the published Android app (`home.apk`, `home.json`); unset: none is offered. */
+  androidApkDir?: string;
 }
 
 const KEY_BYTES = 32;
@@ -75,5 +77,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     tuyaSyncHours,
     deployerUrl: env.DEPLOYER_URL || "http://127.0.0.1:4100",
     deployerTokenFile: env.DEPLOYER_TOKEN_FILE || undefined,
+    androidApkDir: env.ANDROID_APK_DIR || undefined,
   };
 }

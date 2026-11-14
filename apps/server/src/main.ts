@@ -29,6 +29,8 @@ import type { ServiceDeps } from "./services/deps.js";
 import { PendingPairings } from "./devices/pending-pairings.js";
 import { probeKasa } from "./services/kasa-probe.js";
 import { onShutdownSignal } from "./shutdown.js";
+import { startAnnouncement } from "./discovery/announce.js";
+import { announcedName } from "./discovery/announced-name.js";
 
 /** The built web app (apps/web/dist), served in production. */
 const WEB_DIST = fileURLToPath(new URL("../../web/dist", import.meta.url));
@@ -93,8 +95,9 @@ async function main(): Promise<void> {
     log,
   };
   const production = process.env.NODE_ENV === "production";
-  const server = await startServer(deps, { port: config.port, log, webDist: production ? WEB_DIST : undefined });
+  const server = await startServer(deps, { port: config.port, log, webDist: production ? WEB_DIST : undefined, androidApkDir: config.androidApkDir });
   log.info(`Home server listening on port ${server.port}${production ? " (serving the web app)" : ""}`);
+  const announcement = startAnnouncement({ port: server.port, name: await announcedName(prisma, log), host: config.lanAddress, log });
   const scheduler = new RoutineScheduler({ prisma, run: (id) => routines.runScheduled(id), now: () => new Date(), log });
   scheduler.start();
   const tuyaSync = new TuyaSyncSchedule({
@@ -109,6 +112,7 @@ async function main(): Promise<void> {
   // Stop taking requests first, then go2rtc, then the drivers, then release the database.
   // go2rtc stops restarting immediately, so closing the server can't race a respawn.
   onShutdownSignal(async () => {
+    await announcement.stop();
     deps.tvPairings.cancelAll();
     go2rtc.prepareStop();
     scheduler.stop();

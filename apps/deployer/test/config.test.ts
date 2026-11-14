@@ -33,6 +33,7 @@ describe('loadConfig', () => {
       apiPort: 4100,
       branch: 'main',
       serviceName: 'HomeControl',
+      ciWorkflowName: 'CI',
     });
   });
 
@@ -63,6 +64,7 @@ describe('pathsFor', () => {
     const p = pathsFor('C:\\H');
     expect(p.current).toBe('C:\\H\\current');
     expect(p.envFile).toBe('C:\\H\\shared\\.env');
+    expect(pathsFor('C:\\HomeControl').android).toBe('C:\\HomeControl\\shared\\android');
     expect(p.history).toBe('C:\\H\\deployer\\history.json');
     expect(p.backups).toBe('C:\\H\\deployer\\backups');
   });

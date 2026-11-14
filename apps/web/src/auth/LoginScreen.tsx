@@ -7,6 +7,7 @@ import Typography from '@mui/material/Typography'
 import { motion } from 'framer-motion'
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
+import { GetAndroidAppLink } from '../android/GetAndroidAppLink'
 import { useHomeName } from '../home/data/useHomeName'
 import { useDocumentTitle } from '../home/useDocumentTitle'
 import { BrandMark } from '../layout/BrandMark'
@@ -58,6 +59,7 @@ export function LoginScreen() {
           <PinLogin user={selected} onSuccess={() => navigate('/', { replace: true })} onBack={() => setSelected(null)} />
         </motion.div>
       )}
+      <GetAndroidAppLink />
     </Stack>
   )
 }

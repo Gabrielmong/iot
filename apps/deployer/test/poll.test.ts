@@ -17,6 +17,8 @@ function source(commits: Commit[], states: Record<string, CheckState>) {
       head: async () => commits[0]!,
       commitsSince: async () => commits,
       treeSha: async () => undefined,
+      latestAndroidRelease: async () => undefined,
+      downloadAsset: async () => Buffer.alloc(0),
       checkState: async (s: string) => {
         asked.push(s);
         return states[s] ?? 'none';

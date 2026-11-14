@@ -4,7 +4,10 @@ import { type OpContext, errorText } from './op-context.js';
 import { type Pick as CommitPick, type SkipNote, pickCommit } from './pick-commit.js';
 import { makeRedactor } from './redact.js';
 
-export type CommitSource = Pick<GitHub, 'head' | 'commitsSince' | 'checkState' | 'treeSha'>;
+export type CommitSource = Pick<
+  GitHub,
+  'head' | 'commitsSince' | 'checkState' | 'treeSha' | 'latestAndroidRelease' | 'downloadAsset'
+>;
 
 const MAX_SKIPPED = 200;
 

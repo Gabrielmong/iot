@@ -3,6 +3,7 @@ import { ApolloServerPluginDrainHttpServer } from "@apollo/server/plugin/drainHt
 import { expressMiddleware } from "@as-integrations/express5";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
+import { apkRouter, APK_PATH, identityRouter, IDENTITY_PATH } from "./android/routes.js";
 import { createCameraEndpoints } from "./cameras/http/endpoints.js";
 import { CAMERAS_PATH } from "./cameras/http/router.js";
 import { httpContext, type ApiContext } from "./graphql/context.js";
@@ -24,6 +25,8 @@ export interface ServerOptions {
   mseAuthTimeoutMs?: number;
   /** How often camera viewers are re-checked (tests shorten it). */
   viewerSweepMs?: number;
+  /** Folder with the published Android app (`home.apk`, `home.json`). */
+  androidApkDir?: string;
 }
 
 export interface RunningServer {
@@ -68,7 +71,7 @@ export async function startServer(deps: ServiceDeps, opts: ServerOptions): Promi
   await apollo.start();
 
   const graphql = expressMiddleware(apollo, { context: ({ req }) => httpContext(deps, req.headers) });
-  httpServer.on("request", createHttpApp({ graphql, api: { [CAMERAS_PATH]: cameras.router }, webDist: opts.webDist }));
+  httpServer.on("request", createHttpApp({ graphql, api: { [CAMERAS_PATH]: cameras.router, [IDENTITY_PATH]: identityRouter({ prisma: deps.prisma, apkDir: opts.androidApkDir }), [APK_PATH]: apkRouter(opts.androidApkDir) }, webDist: opts.webDist }));
 
   await new Promise<void>((resolve, reject) => {
     httpServer.once("error", reject);
