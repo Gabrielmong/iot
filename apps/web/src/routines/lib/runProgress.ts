@@ -35,6 +35,11 @@ export function stepProgress(steps: readonly Step[], run: RoutineRun | null | un
   const step = steps[index]
   if (!step) return null
   const prefix = `Step ${index + 1} of ${steps.length}`
+  if (run.currentPath.length > 0) return insideRoutine(prefix, run, index / steps.length, now)
+  if (step.kind === 'ROUTINE') {
+    const label = `${prefix} · Running ${step.routineName ?? 'a routine'}…`
+    return { label, shortLabel: label, fraction: index / steps.length }
+  }
   if (step.kind === 'SET') {
     const label = `${prefix} · Setting ${plural(step.actions.length, 'device')}…`
     return { label, shortLabel: label, fraction: index / steps.length }
@@ -44,6 +49,17 @@ export function stepProgress(steps: readonly Step[], run: RoutineRun | null | un
   const through = total > 0 ? Math.min(1, 1 - left / total) : 0
   const remaining = run.waitUntil ? ` · ${timeLeft(run.waitUntil, now)}` : ''
   return { label: `${prefix} · Waiting${remaining}`, shortLabel: `${prefix} · Waiting`, fraction: (index + through) / steps.length }
+}
+
+/** "Step 3 of 3 · Lock up › step 2 of 4 · Waiting · 12 min left": where a called routine has got to. */
+function insideRoutine(prefix: string, run: RoutineRun, fraction: number, now: Date): StepProgress {
+  const inner = run.currentPath[run.currentPath.length - 1]!
+  const where = `${prefix} · ${run.currentPath.map((c) => c.routineName).join(' › ')} › step ${inner.step + 1} of ${inner.stepCount}`
+  if (!run.waitUntil) {
+    const label = `${where} · Running…`
+    return { label, shortLabel: label, fraction }
+  }
+  return { label: `${where} · Waiting · ${timeLeft(run.waitUntil, now)}`, shortLabel: `${where} · Waiting`, fraction }
 }
 
 /** "Step 2 of 3 · Waiting" for a running routine (no countdown, so no clock needed); null otherwise. */

@@ -5,6 +5,7 @@ import type { ServiceDeps } from "../services/deps.js";
 import { refuseGuest } from "../services/guest-rules.js";
 import { parseName } from "../services/user-input.js";
 import { canEditRoutine, canSeeRoutine, onDashboardOf, type RoutineFacts } from "./access.js";
+import { checkCalls } from "./calls.js";
 import { checkDevices } from "./devices.js";
 import { parseSchedules, type ScheduleInput } from "./schedule.js";
 import { parseSteps, type StepInput } from "./steps.js";
@@ -111,6 +112,7 @@ async function validated(prisma: PrismaClient, input: RoutineInput, checkAs: Cal
   const roomId = input.roomId ?? null;
   if (roomId && !(await prisma.room.findUnique({ where: { id: roomId } }))) throw badInput("Unknown room");
   await checkDevices(prisma, steps, checkAs);
+  await checkCalls(prisma, steps, checkAs, { ...who, name });
   await assertUniqueName(prisma, name, who);
   const audience = who.scope === "SHARED" ? await parseAudience(prisma, input.audience ?? []) : [];
   return { fields: { name, roomId, steps }, schedules, audience };

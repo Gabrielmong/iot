@@ -14,7 +14,8 @@ export function draftErrors(d: Draft): string[] {
   else if (name.length > L.maxName) errors.add(`Routine name must be 1-${L.maxName} characters`)
   if (d.steps.length > L.maxSteps) errors.add(`A routine can have at most ${L.maxSteps} steps`)
   const actions = d.steps.flatMap((s) => (s.kind === 'SET' ? s.actions : []))
-  if (actions.length === 0) errors.add('A routine needs at least one device')
+  if (actions.length === 0 && !d.steps.some((s) => s.kind === 'ROUTINE')) errors.add('Add a device or a routine')
+  if (d.steps.some((s) => s.kind === 'ROUTINE' && s.routineName === null)) errors.add('Remove the missing routine')
   for (const s of d.steps) {
     if (s.kind === 'WAIT' && !(Number.isInteger(s.minutes) && s.minutes >= L.minWait && s.minutes <= L.maxWait)) {
       errors.add(`Waits must be ${L.minWait} to ${L.maxWait} minutes`)

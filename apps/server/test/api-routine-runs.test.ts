@@ -203,4 +203,99 @@ describe("routine runs", () => {
     const run = (await h.ok(root.token, `query($id: ID!) { routine(id: $id) { lastRun { problems { step deviceId deviceName reason } } } }`, { id })).routine.lastRun;
     expect(run.problems).toEqual([{ step: 0, deviceId: lamp, deviceName: "Lamp", reason: "UNREACHABLE" }]);
   });
+  describe("routines running routines", () => {
+    const callB = (routineId: string) => ({ kind: "ROUTINE", routineId });
+    const PATH_RUN = `query($id: ID!) { routine(id: $id) { lastRun { status hiddenProblems currentPath { routineName step stepCount } problems { step deviceId deviceName reason routineName } } } }`;
+
+    it("running A which calls B switches B's device and stores a last run on A only", async () => {
+      h = await ApiHarness.start();
+      const ann = await h.user("Ann");
+      const lamp = await h.device();
+      await h.grant(ann.id, lamp);
+      const b = (await h.ok(ann.token, CREATE, { input: input({ name: "B", steps: [setOn(lamp)] }) })).createRoutine.id;
+      const a = (await h.ok(ann.token, CREATE, { input: input({ name: "A", steps: [callB(b)] }) })).createRoutine.id;
+      await h.ok(ann.token, RUN, { id: a });
+      const run = await lastRun(ann.token, a, "OK");
+      expect(run.problems).toEqual([]);
+      expect(h.drivers.KASA.commands).toEqual([{ deviceId: lamp, patch: { on: true } }]);
+      expect((await h.ok(ann.token, ONE, { id: b })).routine.lastRun).toBeNull();
+      expect(await h.db.routineRun.count()).toBe(1);
+    });
+
+    it("a shared routine the caller lost access to is a NO_ACCESS problem without a device", async () => {
+      h = await ApiHarness.start();
+      const root = await h.user("Root", "ADMIN");
+      const ann = await h.user("Ann");
+      const lamp = await h.device();
+      const shared = (await h.ok(root.token, CREATE, { input: input({ name: "Shared", scope: "SHARED", steps: [setOn(lamp)], audience: [ann.id] }) })).createRoutine.id;
+      const a = (await h.ok(ann.token, CREATE, { input: input({ name: "Mine", steps: [callB(shared)] }) })).createRoutine.id;
+      await h.db.routineAudience.deleteMany({ where: { routineId: shared } });
+      await h.ok(ann.token, RUN, { id: a });
+      await lastRun(ann.token, a, "FAILED");
+      const run = (await h.ok(ann.token, PATH_RUN, { id: a })).routine.lastRun;
+      expect(run.problems).toEqual([{ step: 0, deviceId: null, deviceName: null, reason: "NO_ACCESS", routineName: null }]);
+      expect(run.hiddenProblems).toBe(0);
+      expect(h.drivers.KASA.commands).toEqual([]);
+    });
+
+    it("problems without a device show to every viewer", async () => {
+      h = await ApiHarness.start();
+      const root = await h.user("Root", "ADMIN");
+      const ann = await h.user("Ann");
+      const lamp = await h.device();
+      const shared = (await h.ok(root.token, CREATE, { input: input({ name: "Shared", scope: "SHARED", steps: [setOn(lamp)], audience: [ann.id] }) })).createRoutine.id;
+      const a = (await h.ok(root.token, CREATE, { input: input({ name: "Top", scope: "SHARED", steps: [callB(shared)], audience: [ann.id] }) })).createRoutine.id;
+      await h.db.routineAudience.deleteMany({ where: { routineId: shared } });
+      await h.db.routine.delete({ where: { id: shared } });
+      await h.ok(root.token, RUN, { id: a });
+      await lastRun(root.token, a, "FAILED");
+      for (const token of [root.token, ann.token]) {
+        const run = (await h.ok(token, PATH_RUN, { id: a })).routine.lastRun;
+        expect(run.problems).toMatchObject([{ deviceId: null, deviceName: null, reason: "ROUTINE_REMOVED" }]);
+        expect(run.hiddenProblems).toBe(0);
+      }
+    });
+
+    it("the routines query names the called routine, or null once it is deleted", async () => {
+      h = await ApiHarness.start();
+      const ann = await h.user("Ann");
+      const lamp = await h.device();
+      await h.grant(ann.id, lamp);
+      const b = (await h.ok(ann.token, CREATE, { input: input({ name: "B", steps: [setOn(lamp)] }) })).createRoutine.id;
+      await h.ok(ann.token, CREATE, { input: input({ name: "A", steps: [callB(b)] }) });
+      const LIST = `query { routines { name steps { kind routineId routineName actions { deviceId } } } }`;
+      const step = async () => (await h.ok(ann.token, LIST)).routines.find((r: any) => r.name === "A").steps[0];
+      expect(await step()).toEqual({ kind: "ROUTINE", routineId: b, routineName: "B", actions: [] });
+      await h.db.routine.delete({ where: { id: b } });
+      expect(await step()).toEqual({ kind: "ROUTINE", routineId: b, routineName: null, actions: [] });
+    });
+
+    it("a routine the viewer can't see shows as Another routine in steps and in problems", async () => {
+      h = await ApiHarness.start();
+      const root = await h.user("Root", "ADMIN");
+      const ann = await h.user("Ann");
+      const lamp = await h.device();
+      await h.grant(ann.id, lamp);
+      h.drivers.KASA.setStateImpl = async () => Promise.reject(coded("DEVICE_UNREACHABLE", "unreachable"));
+      const b = (await h.ok(root.token, CREATE, { input: input({ name: "Secret", scope: "SHARED", steps: [setOn(lamp)], audience: [] }) })).createRoutine.id;
+      const a = (await h.ok(root.token, CREATE, { input: input({ name: "Top", scope: "SHARED", steps: [callB(b)], audience: [ann.id] }) })).createRoutine.id;
+      await h.ok(root.token, RUN, { id: a });
+      await lastRun(root.token, a, "FAILED");
+      const Q = `query($id: ID!) { routine(id: $id) { steps { routineName } lastRun { problems { routineName } } } }`;
+      expect((await h.ok(ann.token, Q, { id: a })).routine).toEqual({ steps: [{ routineName: "Another routine" }], lastRun: { problems: [{ routineName: "Another routine" }] } });
+      expect((await h.ok(root.token, Q, { id: a })).routine).toEqual({ steps: [{ routineName: "Secret" }], lastRun: { problems: [{ routineName: "Secret" }] } });
+    });
+
+    it("tryRoutine runs a called routine", async () => {
+      h = await ApiHarness.start();
+      const ann = await h.user("Ann");
+      const lamp = await h.device();
+      await h.grant(ann.id, lamp);
+      const b = (await h.ok(ann.token, CREATE, { input: input({ name: "B", steps: [setOn(lamp)] }) })).createRoutine.id;
+      const sub = await h.subscribe(h.wsClient(ann.token), RUN_EVENTS);
+      await h.ok(ann.token, TRY, { input: input({ name: "Draft", steps: [callB(b)] }) });
+      await sub.waitFor((e) => e.data?.routineRunChanged.run.status === "OK");
+      expect(h.drivers.KASA.commands).toEqual([{ deviceId: lamp, patch: { on: true } }]);
+    });
+  });
 });

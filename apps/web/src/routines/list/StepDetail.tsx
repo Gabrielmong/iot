@@ -6,6 +6,7 @@ import { describeAction } from '../lib/describeAction'
 import { reasonText } from '../lib/runLabel'
 import { clockTime, timeLeft, type StepState } from '../lib/runProgress'
 import type { Routine, RoutineRun } from '../types'
+import { CalledRoutineProblems } from './CalledRoutineProblems'
 
 type Props = {
   index: number
@@ -30,7 +31,7 @@ const CHIP: Partial<Record<StepState, { label: string; color: 'success' | 'prima
 export function StepDetail({ index, step, state, run, deviceNames, now }: Props) {
   const titleId = useId()
   const chip = CHIP[state]
-  const title = step.kind === 'WAIT' ? `Wait ${step.waitMinutes} min` : 'Set devices'
+  const title = stepTitle(step)
   const showResults = state === 'done' || (state === 'idle' && run != null && run.status !== 'RUNNING')
   return (
     <Box
@@ -59,6 +60,7 @@ export function StepDetail({ index, step, state, run, deviceNames, now }: Props)
           {timeLeft(run.waitUntil, now)} · next step at {clockTime(run.waitUntil)}
         </Typography>
       )}
+      {step.kind === 'ROUTINE' && showResults && <CalledRoutineProblems problems={run?.problems.filter((p) => p.step === index) ?? []} />}
       {step.kind === 'SET' &&
         step.actions.map((a) => {
           const name = deviceNames.get(a.deviceId) ?? 'Another device'
@@ -72,4 +74,10 @@ export function StepDetail({ index, step, state, run, deviceNames, now }: Props)
         })}
     </Box>
   )
+}
+
+function stepTitle(step: Routine['steps'][number]): string {
+  if (step.kind === 'WAIT') return `Wait ${step.waitMinutes} min`
+  if (step.kind === 'ROUTINE') return step.routineName ? `Run ${step.routineName}` : 'Removed routine'
+  return 'Set devices'
 }

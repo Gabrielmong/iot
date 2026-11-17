@@ -16,7 +16,12 @@ export type DraftAction = {
   colorTempK: number | null
   unavailable: boolean
 }
-export type DraftStep = { key: string } & ({ kind: 'SET'; actions: DraftAction[] } | { kind: 'WAIT'; minutes: number })
+/** `routineName: null` means the called routine was removed. */
+export type DraftStep = { key: string } & (
+  | { kind: 'SET'; actions: DraftAction[] }
+  | { kind: 'WAIT'; minutes: number }
+  | { kind: 'ROUTINE'; routineId: string; routineName: string | null }
+)
 export type DraftSchedule = { key: string; time: string; days: number[]; enabled: boolean }
 export type Draft = {
   name: string
@@ -45,6 +50,7 @@ export function routineToDraft(r: Routine, usable: readonly Device[]): { draft: 
   let droppedDevices = 0
   const steps: DraftStep[] = r.steps.map((s) => {
     if (s.kind === 'WAIT') return { key: newKey(), kind: 'WAIT', minutes: s.waitMinutes ?? 1 }
+    if (s.kind === 'ROUTINE') return { key: newKey(), kind: 'ROUTINE', routineId: s.routineId ?? '', routineName: s.routineName ?? null }
     const actions: DraftAction[] = []
     for (const a of s.actions) {
       const device = byId.get(a.deviceId)
@@ -77,11 +83,11 @@ export function draftToInput(d: Draft): RoutineInput {
     scope: d.scope,
     roomId: d.roomId,
     audience: d.scope === 'SHARED' ? d.audience : null,
-    steps: d.steps.map((s) =>
-      s.kind === 'WAIT'
-        ? { kind: 'WAIT', waitMinutes: s.minutes }
-        : { kind: 'SET', actions: s.actions.map(({ deviceId, on, brightness, color, colorTempK }) => ({ deviceId, on, brightness, color, colorTempK })) },
-    ),
+    steps: d.steps.map((s) => {
+      if (s.kind === 'WAIT') return { kind: 'WAIT', waitMinutes: s.minutes }
+      if (s.kind === 'ROUTINE') return { kind: 'ROUTINE', routineId: s.routineId }
+      return { kind: 'SET', actions: s.actions.map(({ deviceId, on, brightness, color, colorTempK }) => ({ deviceId, on, brightness, color, colorTempK })) }
+    }),
     schedules: d.schedules.map((s) => ({ time: s.time, days: s.days, enabled: s.enabled })),
   }
 }

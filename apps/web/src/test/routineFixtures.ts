@@ -9,7 +9,7 @@ type Opts = Partial<Pick<Routine, 'id' | 'name' | 'scope' | 'editable' | 'audien
 }
 
 /** A run as the server sends it (with `__typename`s). */
-type ProblemOpts = { deviceName: string; reason: ProblemReason; step?: number; deviceId?: string }
+type ProblemOpts = { deviceName: string | null; reason: ProblemReason; step?: number; deviceId?: string; routineName?: string | null }
 type Progress = { currentStep?: number | null; waitUntil?: string | null; startedBy?: string | null }
 
 export function runFixture(status: RunStatus, problems: ProblemOpts[] = [], hiddenProblems = 0, progress: Progress = {}) {
@@ -18,8 +18,9 @@ export function runFixture(status: RunStatus, problems: ProblemOpts[] = [], hidd
     status,
     startedAt: '2026-11-09T20:00:00.000Z',
     endedAt: status === 'RUNNING' ? null : '2026-11-09T20:00:01.000Z',
-    problems: problems.map((p) => ({ __typename: 'RunProblem' as const, step: 0, deviceId: p.deviceName.toLowerCase(), ...p })),
+    problems: problems.map((p) => ({ __typename: 'RunProblem' as const, step: 0, deviceId: p.deviceName?.toLowerCase() ?? null, routineName: null, ...p })),
     hiddenProblems,
+    currentPath: [],
     currentStep: progress.currentStep ?? (status === 'RUNNING' ? 0 : null),
     waitUntil: progress.waitUntil ?? null,
     startedBy: progress.startedBy === undefined ? 'Ann' : progress.startedBy,
@@ -42,6 +43,8 @@ export function routineFixture(o: Opts = {}): Routine {
         __typename: 'RoutineStep',
         kind: 'SET',
         waitMinutes: null,
+        routineId: null,
+        routineName: null,
         actions: (o.deviceIds ?? ['lamp']).map((deviceId) => ({
           __typename: 'DeviceAction',
           deviceId,

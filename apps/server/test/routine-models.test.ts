@@ -1,4 +1,5 @@
 import { afterAll, describe, expect, it } from "vitest";
+import { toSnapshot } from "../src/routines/run-store.js";
 import { closeDb, resetDb } from "./helpers.js";
 
 afterAll(closeDb);
@@ -24,5 +25,12 @@ describe("routine models", () => {
     const r = await db.routine.create({ data: { name: "Den lights", scope: "SHARED", roomId: room.id, steps: [] } });
     await db.room.delete({ where: { id: room.id } });
     expect((await db.routine.findUniqueOrThrow({ where: { id: r.id } })).roomId).toBeNull();
+  });
+
+  it("reads a run saved before nested progress as an empty path and problems without a routine name", () => {
+    const row = { status: "FAILED" as const, startedAt: new Date(), endedAt: null, currentStep: null, waitUntil: null, startedBy: null, problems: [{ step: 0, deviceId: "d", deviceName: "Lamp", reason: "UNREACHABLE" }] };
+    const run = toSnapshot(row);
+    expect(run.currentPath).toEqual([]);
+    expect(run.problems[0].routineName).toBeNull();
   });
 });

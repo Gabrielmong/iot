@@ -129,7 +129,12 @@ describe('camera group dialogs', () => {
     fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: 'Both' } })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
     await vi.waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-    expect(screen.queryAllByRole('button', { name: /^Open / }).map((b) => b.getAttribute('aria-label'))).toEqual(['Open Door', 'Open Street'])
+    // `hidden: true`: MUI can leave the page aria-hidden for a moment after the dialog unmounts; the
+    // tiles themselves must never leave the screen.
+    expect(screen.queryAllByRole('button', { hidden: true, name: /^Open / }).map((b) => b.getAttribute('aria-label'))).toEqual([
+      'Open Door',
+      'Open Street',
+    ])
   })
 
   it('only sends cameras the viewer can still see', async () => {

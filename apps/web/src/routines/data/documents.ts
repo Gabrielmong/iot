@@ -5,9 +5,10 @@ export const ROUTINE_RUN_FIELDS = graphql(`
     status
     startedAt
     endedAt
-    problems { step deviceId deviceName reason }
+    problems { step deviceId deviceName reason routineName }
     hiddenProblems
     currentStep
+    currentPath { routineName step stepCount }
     waitUntil
     startedBy
   }
@@ -22,7 +23,7 @@ export const ROUTINE_FIELDS = graphql(`
     audience
     room { id name }
     owner { id name role }
-    steps { kind waitMinutes actions { deviceId deviceExists on brightness color { r g b } colorTempK } }
+    steps { kind waitMinutes routineId routineName actions { deviceId deviceExists on brightness color { r g b } colorTempK } }
     schedules { time days enabled }
     lastRun { ...RoutineRunFields }
   }
@@ -103,5 +104,11 @@ export const ROUTINE_RUN_CHANGED = graphql(`
 export const ROUTINES_CHANGED = graphql(`
   subscription RoutinesChanged {
     routinesChanged
+  }
+`)
+
+export const CALLABLE_ROUTINES = graphql(`
+  query CallableRoutines($scope: RoutineScope!, $routineId: ID) {
+    callableRoutines(scope: $scope, routineId: $routineId) { id name }
   }
 `)

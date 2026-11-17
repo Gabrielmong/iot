@@ -27,20 +27,22 @@ type LayoutItem { deviceId: ID!  size: TileSize! }
 input LayoutItemInput { deviceId: ID!  size: TileSize! }
 type DashboardLayout { tab: ID!  items: [LayoutItem!]!  isDefault: Boolean! } # tab: "all" or a room id
 enum RoutineScope { PERSONAL SHARED }
-enum StepKind { SET WAIT }
+enum StepKind { SET WAIT ROUTINE }
 enum RunStatus { RUNNING OK PARTIAL FAILED INTERRUPTED STOPPED }
-enum ProblemReason { UNREACHABLE NOT_READY NO_ACCESS REMOVED }
+enum ProblemReason { UNREACHABLE NOT_READY NO_ACCESS REMOVED ROUTINE_REMOVED NESTED_TOO_DEEP }
 type DeviceAction { deviceId: ID!  deviceExists: Boolean!  on: Boolean  brightness: Int  color: Rgb  colorTempK: Int } # on: null = leave power as it is; deviceExists: false once the device was removed
-type RoutineStep { kind: StepKind!  waitMinutes: Int  actions: [DeviceAction!]! }
+type RoutineStep { kind: StepKind!  waitMinutes: Int  actions: [DeviceAction!]!  routineId: ID  routineName: String } # routineId/routineName: ROUTINE steps; routineName null once that routine was removed
 type RoutineSchedule { time: String!  days: [Int!]!  enabled: Boolean! } # time "HH:MM" server local time; days 1 = Monday … 7 = Sunday
-type RunProblem { step: Int!  deviceId: ID!  deviceName: String!  reason: ProblemReason! } # step: index of the Set step
-type RoutineRun { status: RunStatus!  startedAt: String!  endedAt: String  problems: [RunProblem!]!  hiddenProblems: Int!  currentStep: Int  waitUntil: String  startedBy: String } # hiddenProblems: problems on devices the viewer can't see; currentStep (index) and waitUntil while RUNNING; startedBy null = the schedule
+type RunProblem { step: Int!  deviceId: ID  deviceName: String  reason: ProblemReason!  routineName: String } # step: index of the top-level step; deviceId/deviceName null when the problem is about a called routine itself; routineName: the innermost called routine the problem came from, null in the top-level routine
+type RunPathEntry { routineName: String!  step: Int!  stepCount: Int! } # one routine in the chain of running routines
+type RoutineRun { status: RunStatus!  startedAt: String!  endedAt: String  problems: [RunProblem!]!  hiddenProblems: Int!  currentStep: Int  currentPath: [RunPathEntry!]!  waitUntil: String  startedBy: String } # hiddenProblems: problems on devices the viewer can't see; currentStep (index) and waitUntil while RUNNING; startedBy null = the schedule; currentPath: while RUNNING, the called routines the run is inside, outermost first (currentStep is then the top-level step)
 type Routine { id: ID!  name: String!  scope: RoutineScope!  room: Room  owner: User  steps: [RoutineStep!]!  schedules: [RoutineSchedule!]!  audience: [ID!]!  lastRun: RoutineRun  editable: Boolean! } # room: null = Whole house; audience: [] unless the caller is an admin
 type RoutineRunEvent { routineId: ID!  run: RoutineRun! } # routineId "try" for the subscriber's own Try it run
+type RoutineOption { id: ID!  name: String! } # a routine that can be run from another
 type CameraGroup { id: ID!  name: String!  scope: RoutineScope!  owner: User  layout: Int!  cameraIds: [ID!]!  audience: [ID!]!  editable: Boolean! } # cameraIds: in order, only cameras the viewer can see; audience: [] unless admin
 input CameraGroupInput { name: String!  scope: RoutineScope!  layout: Int!  cameraIds: [ID!]!  audience: [ID!] } # layout: 1, 2, 4, 6, 8 or 16; 1-16 cameras
 input DeviceActionInput { deviceId: ID!  on: Boolean  brightness: Int  color: RgbInput  colorTempK: Int }
-input RoutineStepInput { kind: StepKind!  waitMinutes: Int  actions: [DeviceActionInput!] }
+input RoutineStepInput { kind: StepKind!  waitMinutes: Int  actions: [DeviceActionInput!]  routineId: ID }
 input RoutineScheduleInput { time: String!  days: [Int!]!  enabled: Boolean }
 input RoutineInput { name: String!  scope: RoutineScope!  roomId: ID  steps: [RoutineStepInput!]!  schedules: [RoutineScheduleInput!]!  audience: [ID!] } # audience: SHARED only
 
@@ -71,6 +73,7 @@ type Query {
   routines: [Routine!]!           # the caller's dashboard set: own personal + shared they can see (admins: own + every shared)
   otherRoutines: [Routine!]!      # admin; other users' personal routines
   routine(id: ID!): Routine       # null if missing or not visible
+  callableRoutines(scope: RoutineScope!, routineId: ID): [RoutineOption!]! # routines a routine of this scope may run, by name; routineId: the routine being edited (itself excluded, its owner is the viewer)
   cameraGroups: [CameraGroup!]!       # own personal groups, then shared ones the caller can see (admins: all shared); each by name
   otherCameraGroups: [CameraGroup!]!  # admin; other users' personal groups
   deployStatus: DeployStatus!         # admin

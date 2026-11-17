@@ -1,5 +1,5 @@
 import { emptyDraft, type Draft, type DraftAction } from './draft'
-import { addSchedule, addStep, moveStep, removeAction, removeSchedule, removeStep, setWait, updateSchedule, upsertAction } from './draftOps'
+import { addRoutineStep, addSchedule, addStep, moveStep, removeAction, removeSchedule, removeStep, setStepRoutine, setWait, updateSchedule, upsertAction } from './draftOps'
 
 const action = (deviceId: string, over: Partial<DraftAction> = {}): DraftAction => ({ deviceId, on: true, brightness: null, color: null, colorTempK: null, unavailable: false, ...over })
 const kinds = (d: Draft) => d.steps.map((s) => s.kind)
@@ -39,5 +39,13 @@ describe('draftOps', () => {
     d = updateSchedule(d, key, { time: '22:30', enabled: false })
     expect(d.schedules[0]).toMatchObject({ time: '22:30', enabled: false })
     expect(removeSchedule(d, key).schedules).toEqual([])
+  })
+
+  it('adds a Run routine step at the end and swaps its routine', () => {
+    let d = addRoutineStep(emptyDraft('PERSONAL'), { id: 'b', name: 'Bedtime' })
+    expect(d.steps[1]).toMatchObject({ kind: 'ROUTINE', routineId: 'b', routineName: 'Bedtime' })
+    d = setStepRoutine(d, d.steps[1]!.key, { id: 'c', name: 'Morning' })
+    expect(d.steps[1]).toMatchObject({ kind: 'ROUTINE', routineId: 'c', routineName: 'Morning' })
+    expect(setStepRoutine(d, d.steps[0]!.key, { id: 'x', name: 'X' }).steps[0]).toMatchObject({ kind: 'SET' })
   })
 })

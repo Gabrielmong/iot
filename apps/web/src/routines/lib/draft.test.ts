@@ -41,7 +41,7 @@ describe('draft', () => {
       deviceIds: ['lamp'],
       schedules: [{ time: '07:00', days: [1, 2], enabled: false }],
     })
-    r.steps.push({ kind: 'WAIT', waitMinutes: 45, actions: [] })
+    r.steps.push({ kind: 'WAIT', waitMinutes: 45, routineId: null, routineName: null, actions: [] })
     const { draft } = routineToDraft(r, [lamp])
     expect(draftToInput(draft)).toEqual({
       name: 'Movie night',
@@ -54,6 +54,21 @@ describe('draft', () => {
       ],
       schedules: [{ time: '07:00', days: [1, 2], enabled: false }],
     })
+  })
+
+  it('keeps a Run routine step with its name, or a null name when the routine was removed', () => {
+    const r = routineFixture()
+    r.steps.push({ kind: 'ROUTINE', waitMinutes: null, actions: [], routineId: 'b', routineName: 'Bedtime' })
+    r.steps.push({ kind: 'ROUTINE', waitMinutes: null, actions: [], routineId: 'c', routineName: null })
+    const { draft } = routineToDraft(r, [lamp])
+    expect(draft.steps.slice(1)).toMatchObject([
+      { kind: 'ROUTINE', routineId: 'b', routineName: 'Bedtime' },
+      { kind: 'ROUTINE', routineId: 'c', routineName: null },
+    ])
+    expect(draftToInput(draft).steps.slice(1)).toEqual([
+      { kind: 'ROUTINE', routineId: 'b' },
+      { kind: 'ROUTINE', routineId: 'c' },
+    ])
   })
 
   it('sends no audience for personal routines and trims the name', () => {

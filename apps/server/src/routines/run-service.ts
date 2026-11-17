@@ -4,6 +4,7 @@ import type { DeviceManager } from "../devices/manager.js";
 import { ROUTINE_RUN, type RoutineRunPayload } from "../devices/topics.js";
 import type { PrismaClient, RoutineScope, User } from "../generated/prisma/client.js";
 import { canAccessDevice } from "../services/grants.js";
+import { loadCalledRoutine } from "./called-routine-loader.js";
 import { cancellableDelay } from "./cancellable-delay.js";
 import { saveLastRun, markInterrupted } from "./run-store.js";
 import { RoutineRunner, type RunAs, type RunSnapshot } from "./runner.js";
@@ -40,6 +41,11 @@ export class RoutineService {
         const user = await prisma.user.findUnique({ where: { id: userId } });
         return user !== null && canAccessDevice(prisma, user, deviceId);
       },
+      routine: (id, runAs) =>
+        loadCalledRoutine(prisma, id, runAs).catch((error: unknown) => {
+          opts.log.error("loading a called routine failed", error);
+          throw error;
+        }),
       delay: opts.delay ?? cancellableDelay,
       now: opts.now,
       onChange: (key, run) => this.enqueue(key, run),

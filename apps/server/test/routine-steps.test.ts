@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { assertActionFits, canUseInRoutine, fitAction, supportsLightDetails } from "../src/routines/action-rules.js";
-import { parseSteps, type StepInput } from "../src/routines/steps.js";
+import { parseSteps, stepRoutineIds, type StepInput } from "../src/routines/steps.js";
 
 const set = (...deviceIds: string[]): StepInput => ({ kind: "SET", actions: deviceIds.map((deviceId) => ({ deviceId, on: true })) });
 const wait = (waitMinutes: number): StepInput => ({ kind: "WAIT", waitMinutes });
@@ -64,9 +64,26 @@ describe("parseSteps", () => {
     expect(step).toEqual({ kind: "SET", actions: [{ deviceId: "a", brightness: 20, colorTempK: 2700 }] });
   });
 
-  it("needs at least one device", () => {
-    expect(message(() => parseSteps([]))).toBe("A routine needs at least one device");
-    expect(message(() => parseSteps([{ kind: "SET", actions: [] }, wait(5)]))).toBe("A routine needs at least one device");
+  it("needs a device or a routine", () => {
+    expect(message(() => parseSteps([]))).toBe("Add a device or a routine");
+    expect(message(() => parseSteps([{ kind: "SET", actions: [] }, wait(5)]))).toBe("Add a device or a routine");
+    expect(message(() => parseSteps([{ kind: "WAIT", waitMinutes: 5 }]))).toBe("Add a device or a routine");
+  });
+
+  it("accepts a routine made only of Run routine steps", () => {
+    expect(parseSteps([{ kind: "ROUTINE", routineId: "r2" }])).toEqual([{ kind: "ROUTINE", routineId: "r2" }]);
+  });
+
+  it("rejects a Run routine step with no routine", () => {
+    expect(message(() => parseSteps([{ kind: "ROUTINE" }]))).toBe("Pick a routine to run");
+    expect(message(() => parseSteps([{ kind: "ROUTINE", routineId: "" }]))).toBe("Pick a routine to run");
+  });
+});
+
+describe("stepRoutineIds", () => {
+  it("lists called routines once, in order", () => {
+    const steps = parseSteps([set("a"), { kind: "ROUTINE", routineId: "r2" }, { kind: "ROUTINE", routineId: "r3" }, { kind: "ROUTINE", routineId: "r2" }]);
+    expect(stepRoutineIds(steps)).toEqual(["r2", "r3"]);
   });
 });
 

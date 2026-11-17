@@ -4,6 +4,7 @@ import { draftErrors } from './draftErrors'
 const lampOn: DraftAction = { deviceId: 'lamp', on: true, brightness: null, color: null, colorTempK: null, unavailable: false }
 const set = (actions = [lampOn]): DraftStep => ({ key: Math.random().toString(), kind: 'SET', actions })
 const wait = (minutes: number): DraftStep => ({ key: Math.random().toString(), kind: 'WAIT', minutes })
+const routine = (routineId: string, routineName: string | null): DraftStep => ({ key: Math.random().toString(), kind: 'ROUTINE', routineId, routineName })
 const valid = (over: Partial<Draft> = {}): Draft => ({ ...emptyDraft('PERSONAL'), name: 'Movie night', steps: [set()], ...over })
 
 describe('draftErrors', () => {
@@ -16,8 +17,13 @@ describe('draftErrors', () => {
     expect(draftErrors(valid({ name: 'x'.repeat(41) }))).toEqual(['Routine name must be 1-40 characters'])
   })
 
-  it('needs at least one device', () => {
-    expect(draftErrors(valid({ steps: [set([]), wait(5)] }))).toEqual(['A routine needs at least one device'])
+  it('needs a device or a routine', () => {
+    expect(draftErrors(valid({ steps: [set([]), wait(5)] }))).toEqual(['Add a device or a routine'])
+    expect(draftErrors(valid({ steps: [routine('b', 'Bedtime')] }))).toEqual([])
+  })
+
+  it('asks to remove a routine that no longer exists', () => {
+    expect(draftErrors(valid({ steps: [set(), routine('b', null)] }))).toEqual(['Remove the missing routine'])
   })
 
   it('limits waits to 1-720 minutes and steps to 20', () => {

@@ -158,6 +158,6 @@ describe('RoutineEditor', () => {
     setup()
     fireEvent.change(await screen.findByLabelText('Name'), { target: { value: 'Empty' } })
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
-    expect(screen.getByText('A routine needs at least one device')).toBeInTheDocument()
+    expect(screen.getByText('Add a device or a routine')).toBeInTheDocument()
   })
 })

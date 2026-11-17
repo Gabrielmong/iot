@@ -102,7 +102,7 @@ describe('RoutineList', () => {
   it('lists running routines with their step, and opens the step details', async () => {
     const waitUntil = new Date(Date.now() + 12.5 * 60_000).toISOString()
     const running = routineFixture({ id: 'a', name: 'Movie night', lastRun: runFixture('RUNNING', [], 0, { currentStep: 1, waitUntil }) })
-    running.steps.push({ kind: 'WAIT', waitMinutes: 45, actions: [] })
+    running.steps.push({ kind: 'WAIT', waitMinutes: 45, routineId: null, routineName: null, actions: [] })
     setup(false, [running, shared])
     const now = await section('Running now')
     expect(within(now).getByText('Step 2 of 2 · Waiting · 12 min left')).toBeInTheDocument()

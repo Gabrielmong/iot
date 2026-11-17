@@ -4,6 +4,9 @@ import { deviceFixture, lightFixture } from '../../test/deviceFixtures'
 import { emptyDraft, type Draft } from '../lib/draft'
 import { StepList } from './StepList'
 
+const callable = vi.hoisted(() => ({ routines: [{ id: 'lock', name: 'Lock up' }, { id: 'goodnight', name: 'Goodnight' }] as { id: string; name: string }[] }))
+vi.mock('../data/useCallableRoutines', () => ({ useCallableRoutines: () => ({ routines: callable.routines, loading: false }) }))
+
 const living = { id: 'r1', name: 'Living room' }
 const lamp = lightFixture({}, { id: 'lamp', name: 'Floor lamp', room: living })
 const tv = deviceFixture({ id: 'tv', name: 'TV plug', kind: 'PLUG', room: living })
@@ -39,6 +42,47 @@ async function addDevice(stepNumber: number, deviceName: string) {
 }
 
 describe('StepList', () => {
+  beforeEach(() => {
+    callable.routines = [{ id: 'lock', name: 'Lock up' }, { id: 'goodnight', name: 'Goodnight' }]
+  })
+
+  it('adds a Run routine step from the picker', async () => {
+    const { draft } = setup()
+    fireEvent.click(screen.getByRole('button', { name: 'Add routine' }))
+    const picker = await screen.findByRole('dialog', { name: 'Pick a routine' })
+    expect(within(picker).getByRole('button', { name: 'Goodnight' })).toBeInTheDocument()
+    fireEvent.click(within(picker).getByRole('button', { name: 'Lock up' }))
+    expect(screen.getByRole('group', { name: /^Step 2: Run routine/ })).toHaveTextContent('Lock up')
+    expect(draft().steps[1]).toMatchObject({ kind: 'ROUTINE', routineId: 'lock', routineName: 'Lock up' })
+  })
+
+  it('changes the routine of a step', async () => {
+    const initial = emptyDraft('PERSONAL')
+    initial.steps = [{ key: 'r', kind: 'ROUTINE', routineId: 'lock', routineName: 'Lock up' }]
+    const { draft } = setup(initial)
+    fireEvent.click(within(step(1)).getByRole('button', { name: 'Change' }))
+    const picker = await screen.findByRole('dialog', { name: 'Pick a routine' })
+    fireEvent.click(within(picker).getByRole('button', { name: 'Goodnight' }))
+    expect(within(step(1)).getByText('Goodnight')).toBeInTheDocument()
+    expect(draft().steps).toHaveLength(1)
+    expect(draft().steps[0]).toMatchObject({ routineId: 'goodnight', routineName: 'Goodnight' })
+  })
+
+  it('shows a removed routine', () => {
+    const initial = emptyDraft('PERSONAL')
+    initial.steps = [{ key: 'r', kind: 'ROUTINE', routineId: 'gone', routineName: null }]
+    setup(initial)
+    expect(within(step(1)).getByText('Removed routine')).toBeInTheDocument()
+  })
+
+  it('says so when there is no other routine to run', async () => {
+    callable.routines = []
+    setup()
+    fireEvent.click(screen.getByRole('button', { name: 'Add routine' }))
+    const picker = await screen.findByRole('dialog', { name: 'Pick a routine' })
+    expect(within(picker).getByText('No other routines to run')).toBeInTheDocument()
+  })
+
   it('adds Set and Wait steps', () => {
     const { draft } = setup()
     fireEvent.click(screen.getByRole('button', { name: 'Add wait' }))

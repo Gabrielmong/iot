@@ -11,8 +11,8 @@ const names = new Map([
 
 function movieNight(lastRun: Routine['lastRun']): Routine {
   const r = routineFixture({ name: 'Movie night', deviceIds: ['lamp', 'tv'], lastRun })
-  r.steps.push({ kind: 'WAIT', waitMinutes: 45, actions: [] })
-  r.steps.push({ kind: 'SET', waitMinutes: null, actions: [{ ...r.steps[0]!.actions[0]!, on: false }] })
+  r.steps.push({ kind: 'WAIT', waitMinutes: 45, routineId: null, routineName: null, actions: [] })
+  r.steps.push({ kind: 'SET', waitMinutes: null, routineId: null, routineName: null, actions: [{ ...r.steps[0]!.actions[0]!, on: false }] })
   return r
 }
 
@@ -60,5 +60,30 @@ describe('RunDetailsDialog', () => {
     const hidden = within(step(1)).getByText(/^Step 1:/)
     expect(getComputedStyle(hidden).width).toBe('1px')
     expect(getComputedStyle(hidden).height).toBe('1px')
+  })
+
+  it('lists the problems of a called routine under its step', () => {
+    const r = routineFixture({ name: 'Bedtime', deviceIds: [], lastRun: null })
+    r.steps.push({ kind: 'ROUTINE', waitMinutes: null, routineId: 'lock', routineName: 'Lock up', actions: [] })
+    r.lastRun = runFixture('PARTIAL', [{ step: 1, deviceId: 'lamp', deviceName: 'Lamp', reason: 'UNREACHABLE', routineName: 'Lock up' }], 0)
+    render(<RunDetailsDialog routine={r} deviceNames={names} onStop={() => {}} onClose={() => {}} />)
+    expect(within(step(2)).getByText(/Run Lock up$/)).toBeInTheDocument()
+    expect(within(step(2)).getByText("⚠ Lock up › Lamp: couldn't reach it")).toBeInTheDocument()
+  })
+
+  it('words a problem with the call itself, and one inside a called routine, differently', () => {
+    const r = routineFixture({ name: 'Bedtime', deviceIds: [], lastRun: null })
+    r.steps.push({ kind: 'ROUTINE', waitMinutes: null, routineId: 'lock', routineName: 'Lock up', actions: [] })
+    r.lastRun = runFixture(
+      'PARTIAL',
+      [
+        { step: 1, deviceName: null, reason: 'ROUTINE_REMOVED', routineName: null },
+        { step: 1, deviceName: null, reason: 'ROUTINE_REMOVED', routineName: 'Lock up' },
+      ],
+      0,
+    )
+    render(<RunDetailsDialog routine={r} deviceNames={names} onStop={() => {}} onClose={() => {}} />)
+    expect(within(step(2)).getByText('⚠ Routine: routine removed')).toBeInTheDocument()
+    expect(within(step(2)).getByText('⚠ Lock up › Run routine: routine removed')).toBeInTheDocument()
   })
 })

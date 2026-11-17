@@ -60,7 +60,7 @@ export function RoutineEditor({ initial, routineId, isAdmin, devices, notice }: 
           />
         )}
         <Section title="Steps">
-          <StepList draft={draft} devices={devices} rooms={rooms} onChange={setDraft} />
+          <StepList draft={draft} devices={devices} rooms={rooms} routineId={routineId} onChange={setDraft} />
         </Section>
         <Section title="Schedule">
           <ScheduleList draft={draft} onChange={setDraft} />

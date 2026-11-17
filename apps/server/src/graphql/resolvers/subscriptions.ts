@@ -1,7 +1,7 @@
 import { withFilter } from "graphql-subscriptions";
 import { notFound } from "../../api-errors.js";
 import type { DeviceStatePayload, RoutineRunPayload } from "../../devices/topics.js";
-import { deviceVisibility, viewRun } from "../../routines/problem-view.js";
+import { deviceVisibility, routineVisibility, viewRun } from "../../routines/problem-view.js";
 import { isTryKey, tryKey } from "../../routines/run-service.js";
 import { getRoutine } from "../../routines/store.js";
 import type { User } from "../../generated/prisma/client.js";
@@ -76,8 +76,10 @@ export const subscriptionResolvers = {
         )(root, args, ctx);
       },
       resolve: async (payload: RoutineRunPayload, _: unknown, ctx: ApiContext) => {
-        const canSee = await deviceVisibility(ctx.prisma, requireUser(ctx));
-        return { routineId: isTryKey(payload.key) ? "try" : payload.key, run: viewRun(payload.run, canSee) };
+        const user = requireUser(ctx);
+        const canSee = await deviceVisibility(ctx.prisma, user);
+        const canSeeRoutine = await routineVisibility(ctx.prisma, user);
+        return { routineId: isTryKey(payload.key) ? "try" : payload.key, run: viewRun(payload.run, canSee, canSeeRoutine) };
       },
     },
     cameraGroupsChanged: {

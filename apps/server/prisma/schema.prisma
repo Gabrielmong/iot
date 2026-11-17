@@ -198,8 +198,8 @@ model RoutineAudience {
   @@id([routineId, userId])
 }
 
-/// The most recent run of a routine. problems: [{ step, deviceId, deviceName, reason }].
-/// currentStep/waitUntil: progress while RUNNING; startedBy: a user's name, null when the schedule started it.
+/// The most recent run of a routine. problems: [{ step, deviceId, deviceName, reason, routineName }] (deviceId/deviceName null for a called routine that
+/// failed to load). currentStep/currentPath/waitUntil: progress while RUNNING; startedBy: a user's name, null when the schedule started it.
 model RoutineRun {
   routineId String    @id
   routine   Routine   @relation(fields: [routineId], references: [id], onDelete: Cascade)
@@ -208,6 +208,8 @@ model RoutineRun {
   endedAt     DateTime?
   problems    Json
   currentStep Int?
+  /// Where a run is while inside called routines: one entry per routine in the chain.
+  currentPath Json      @default("[]")
   waitUntil   DateTime?
   startedBy   String?
 }

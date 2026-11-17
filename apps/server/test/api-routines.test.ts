@@ -191,3 +191,110 @@ describe("routines API", () => {
     ]);
   });
 });
+
+const callStep = (routineId: string) => ({ kind: "ROUTINE", routineId });
+const CALLABLE = `query($scope: RoutineScope!, $routineId: ID) { callableRoutines(scope: $scope, routineId: $routineId) { id name } }`;
+const messages = (r: { errors?: { message: string }[] }) => (r.errors ?? []).map((e) => e.message);
+
+describe("routines that run other routines", () => {
+  it("a personal routine runs the owner's personal routines and the shared ones they see", async () => {
+    h = await ApiHarness.start();
+    const root = await h.user("Root", "ADMIN");
+    const ann = await h.user("Ann");
+    const lamp = await h.device();
+    await h.grant(ann.id, lamp);
+    const mine = (await h.ok(ann.token, CREATE, { input: input({ name: "Mine", steps: [setOn(lamp)] }) })).createRoutine.id;
+    const shared = (await h.ok(root.token, CREATE, { input: input({ name: "Lights", scope: "SHARED", steps: [setOn(lamp)], audience: [ann.id] }) })).createRoutine.id;
+    const caller = (await h.ok(ann.token, CREATE, { input: input({ name: "Both", steps: [callStep(mine), callStep(shared)] }) })).createRoutine;
+    expect(caller.name).toBe("Both");
+  });
+
+  it("rejects routines the owner can't use", async () => {
+    h = await ApiHarness.start();
+    const root = await h.user("Root", "ADMIN");
+    const ann = await h.user("Ann");
+    const bob = await h.user("Bob");
+    const lamp = await h.device();
+    await h.grant(ann.id, lamp);
+    await h.grant(bob.id, lamp);
+    const bobs = (await h.ok(bob.token, CREATE, { input: input({ name: "Bobs", steps: [setOn(lamp)] }) })).createRoutine.id;
+    const hidden = (await h.ok(root.token, CREATE, { input: input({ name: "Hidden", scope: "SHARED", steps: [setOn(lamp)], audience: [bob.id] }) })).createRoutine.id;
+    const sharedOk = (await h.ok(root.token, CREATE, { input: input({ name: "Open", scope: "SHARED", steps: [setOn(lamp)], audience: [ann.id] }) })).createRoutine.id;
+    const mine = (await h.ok(ann.token, CREATE, { input: input({ name: "Mine", steps: [setOn(lamp)] }) })).createRoutine.id;
+    for (const [id, name] of [[bobs, "Bobs"], [hidden, "Hidden"]]) {
+      const r = await h.gql(ann.token, CREATE, { input: input({ name: "Caller", steps: [callStep(id)] }) });
+      expect(codes(r)).toEqual(["BAD_USER_INPUT"]);
+      expect(messages(r)).toEqual([`You can't run ${name} from this routine`]);
+    }
+    const shares = await h.gql(root.token, CREATE, { input: input({ name: "Wide", scope: "SHARED", steps: [callStep(mine)], audience: [ann.id] }) });
+    expect(messages(shares)).toEqual(["You can't run Mine from this routine"]);
+    expect(sharedOk).toBeTruthy();
+  });
+
+  it("rejects an unknown routine", async () => {
+    h = await ApiHarness.start();
+    const ann = await h.user("Ann");
+    const r = await h.gql(ann.token, CREATE, { input: input({ steps: [callStep("00000000-0000-0000-0000-000000000000")] }) });
+    expect(codes(r)).toEqual(["BAD_USER_INPUT"]);
+    expect(messages(r)).toEqual(["Unknown routine"]);
+  });
+
+  it("hides the names of routines the saver can't see in a too-deep error", async () => {
+    h = await ApiHarness.start();
+    const root = await h.user("Root", "ADMIN");
+    const ann = await h.user("Ann");
+    const bob = await h.user("Bob");
+    const lamp = await h.device();
+    await h.grant(ann.id, lamp);
+    await h.grant(bob.id, lamp);
+    const shared = async (name: string, steps: unknown[], audience: string[]) =>
+      (await h.ok(root.token, CREATE, { input: input({ name, scope: "SHARED", steps, audience }) })).createRoutine.id;
+    const u = await shared("U", [setOn(lamp)], [bob.id]);
+    const t = await shared("T", [callStep(u)], [bob.id]);
+    const s = await shared("S", [callStep(t)], [ann.id, bob.id]);
+    const r = await h.gql(ann.token, CREATE, { input: input({ name: "A", steps: [callStep(s)] }) });
+    expect(codes(r)).toEqual(["BAD_USER_INPUT"]);
+    expect(messages(r)).toEqual(["Routines can run other routines only 3 levels deep (A → S → Another routine → Another routine)"]);
+  });
+
+  it("rejects a loop and a chain that is too deep when updating", async () => {
+    h = await ApiHarness.start();
+    const ann = await h.user("Ann");
+    const lamp = await h.device();
+    await h.grant(ann.id, lamp);
+    const make = async (name: string, steps: unknown[]) => (await h.ok(ann.token, CREATE, { input: input({ name, steps }) })).createRoutine.id;
+    const d = await make("D", [setOn(lamp)]);
+    const c = await make("C", [callStep(d)]);
+    const b = await make("B", [callStep(c)]);
+    const a = await make("A", [setOn(lamp)]);
+    const tooDeep = await h.gql(ann.token, UPDATE, { id: a, input: input({ name: "A", steps: [callStep(b)] }) });
+    expect(codes(tooDeep)).toEqual(["BAD_USER_INPUT"]);
+    expect(messages(tooDeep)).toEqual(["Routines can run other routines only 3 levels deep (A → B → C → D)"]);
+    await h.ok(ann.token, UPDATE, { id: b, input: input({ name: "B", steps: [setOn(lamp)] }) });
+    await h.ok(ann.token, UPDATE, { id: a, input: input({ name: "A", steps: [callStep(b)] }) });
+    const loop = await h.gql(ann.token, UPDATE, { id: b, input: input({ name: "B", steps: [callStep(a)] }) });
+    expect(codes(loop)).toEqual(["BAD_USER_INPUT"]);
+    expect(messages(loop)).toEqual(["A routine can't run itself (B → A → B)"]);
+    const self = await h.gql(ann.token, UPDATE, { id: a, input: input({ name: "A", steps: [callStep(a)] }) });
+    expect(messages(self)).toEqual(["You can't run A from this routine"]);
+  });
+
+  it("lists the routines that can be run, never the routine itself", async () => {
+    h = await ApiHarness.start();
+    const root = await h.user("Root", "ADMIN");
+    const ann = await h.user("Ann");
+    const bob = await h.user("Bob");
+    const lamp = await h.device();
+    await h.grant(ann.id, lamp);
+    await h.grant(bob.id, lamp);
+    await h.ok(bob.token, CREATE, { input: input({ name: "Bobs", steps: [setOn(lamp)] }) });
+    await h.ok(root.token, CREATE, { input: input({ name: "Hidden", scope: "SHARED", steps: [setOn(lamp)], audience: [bob.id] }) });
+    await h.ok(root.token, CREATE, { input: input({ name: "Open", scope: "SHARED", steps: [setOn(lamp)], audience: [ann.id] }) });
+    const zed = (await h.ok(ann.token, CREATE, { input: input({ name: "Zed", steps: [setOn(lamp)] }) })).createRoutine.id;
+    await h.ok(ann.token, CREATE, { input: input({ name: "Abe", steps: [setOn(lamp)] }) });
+    const names = (r: { callableRoutines: { name: string }[] }) => r.callableRoutines.map((o) => o.name);
+    expect(names(await h.ok(ann.token, CALLABLE, { scope: "PERSONAL" }))).toEqual(["Abe", "Open", "Zed"]);
+    expect(names(await h.ok(ann.token, CALLABLE, { scope: "PERSONAL", routineId: zed }))).toEqual(["Abe", "Open"]);
+    expect(names(await h.ok(root.token, CALLABLE, { scope: "SHARED" }))).toEqual(["Hidden", "Open"]);
+  });
+});

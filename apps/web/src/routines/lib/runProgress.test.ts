@@ -3,7 +3,7 @@ import { clockTime, currentStepLabel, stepProgress, stepStates, timeLeft } from 
 
 const NOW = new Date(2026, 10, 9, 20, 36, 0)
 const routine = routineFixture({ deviceIds: ['lamp', 'tv'] })
-routine.steps.push({ kind: 'WAIT', waitMinutes: 45, actions: [] })
+routine.steps.push({ kind: 'WAIT', waitMinutes: 45, routineId: null, routineName: null, actions: [] })
 routine.steps.push({ ...routine.steps[0]! })
 
 const at = (h: number, m: number, s = 0) => new Date(2026, 10, 9, h, m, s).toISOString()
@@ -19,6 +19,18 @@ describe('runProgress', () => {
     expect(p.label).toBe('Step 2 of 3 · Waiting · 12 min left')
     expect(p.shortLabel).toBe('Step 2 of 3 · Waiting')
     expect(p.fraction).toBeCloseTo((1 + 33 / 45) / 3)
+  })
+
+  it('shows where a called routine has got to', () => {
+    const path = [{ __typename: 'RunPathEntry' as const, routineName: 'Lock up', step: 1, stepCount: 4 }]
+    const inside = (waitUntil: string | null) => ({ ...running(2, waitUntil), currentPath: path })
+    expect(stepProgress(routine.steps, inside(at(20, 48)), NOW)!.label).toBe('Step 3 of 3 · Lock up › step 2 of 4 · Waiting · 12 min left')
+    expect(stepProgress(routine.steps, inside(null), NOW)!.label).toBe('Step 3 of 3 · Lock up › step 2 of 4 · Running…')
+  })
+
+  it('names a Run routine step that has just started', () => {
+    const steps = [...routine.steps.slice(0, 2), { kind: 'ROUTINE' as const, waitMinutes: null, routineId: 'x', routineName: 'Lock up', actions: [] }]
+    expect(stepProgress(steps, running(2), NOW)!.label).toBe('Step 3 of 3 · Running Lock up…')
   })
 
   it('names the current step without a countdown', () => {

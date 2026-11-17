@@ -5,10 +5,18 @@ const DEFAULT_SCHEDULE = { time: '07:00', days: [1, 2, 3, 4, 5], enabled: true }
 
 const mapStep = (d: Draft, key: string, fn: (s: DraftStep) => DraftStep): Draft => ({ ...d, steps: d.steps.map((s) => (s.key === key ? fn(s) : s)) })
 
-export function addStep(d: Draft, kind: DraftStep['kind']): Draft {
-  const step: DraftStep = kind === 'WAIT' ? { key: newKey(), kind, minutes: DEFAULT_WAIT_MINUTES } : { key: newKey(), kind, actions: [] }
+export function addStep(d: Draft, kind: 'SET' | 'WAIT'): Draft {
+  const step: DraftStep = kind === 'WAIT' ? { key: newKey(), kind, minutes: DEFAULT_WAIT_MINUTES } : { key: newKey(), kind: 'SET', actions: [] }
   return { ...d, steps: [...d.steps, step] }
 }
+
+export const addRoutineStep = (d: Draft, routine: { id: string; name: string }): Draft => ({
+  ...d,
+  steps: [...d.steps, { key: newKey(), kind: 'ROUTINE', routineId: routine.id, routineName: routine.name }],
+})
+
+export const setStepRoutine = (d: Draft, key: string, routine: { id: string; name: string }): Draft =>
+  mapStep(d, key, (s) => (s.kind === 'ROUTINE' ? { ...s, routineId: routine.id, routineName: routine.name } : s))
 
 export const removeStep = (d: Draft, key: string): Draft => ({ ...d, steps: d.steps.filter((s) => s.key !== key) })
 

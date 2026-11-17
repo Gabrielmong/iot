@@ -2,13 +2,17 @@ import { describe, expect, it, vi } from "vitest";
 import { coded } from "../src/api-errors.js";
 import type { StatePatch } from "../src/devices/types.js";
 import { outcome } from "../src/routines/run-outcome.js";
-import { RoutineRunner, type RunnerDeps, type RunSnapshot } from "../src/routines/runner.js";
+import { RoutineRunner, type RunAs, type RunnerDeps, type RunSnapshot } from "../src/routines/runner.js";
 import type { RoutineStep } from "../src/routines/steps.js";
 
 type Device = { id: string; name: string; kind: "LIGHT" | "PLUG" | "CAMERA"; brand: "TUYA" | "KASA" | "SWANN" };
 
-function setup(devices: Device[]) {
+type Called = { name: string; steps: RoutineStep[] } | "NO_ACCESS" | "THROW";
+
+function setup(devices: Device[], routines: Record<string, Called> = {}) {
   const byId = new Map(devices.map((d) => [d.id, d]));
+  const routineCalls: { id: string; runAs: RunAs }[] = [];
+  const accessCalls: string[] = [];
   const commands: { deviceId: string; patch: StatePatch }[] = [];
   const waits: { ms: number; release: () => void }[] = [];
   const events: { key: string; run: RunSnapshot }[] = [];
@@ -20,7 +24,15 @@ function setup(devices: Device[]) {
       await setStateImpl(deviceId);
     },
     device: async (id) => byId.get(id) ?? null,
-    canAccess: async (_userId, deviceId) => access.has(deviceId),
+    canAccess: async (userId, deviceId) => {
+      accessCalls.push(userId);
+      return access.has(deviceId);
+    },
+    routine: async (id, runAs) => {
+      routineCalls.push({ id, runAs });
+      if (routines[id] === "THROW") throw new Error("db down");
+      return routines[id] ?? null;
+    },
     delay: (ms, signal) =>
       new Promise((resolve, reject) => {
         waits.push({ ms, release: resolve });
@@ -35,6 +47,8 @@ function setup(devices: Device[]) {
     waits,
     events,
     access,
+    routineCalls,
+    accessCalls,
     /** Status changes (repeated RUNNING events for later steps collapse into one). */
     statuses: (key = "r1") =>
       events
@@ -49,6 +63,7 @@ const lamp: Device = { id: "lamp", name: "Lamp", kind: "LIGHT", brand: "TUYA" };
 const tv: Device = { id: "tv", name: "TV", kind: "PLUG", brand: "KASA" };
 const set = (...actions: { deviceId: string; on?: boolean; brightness?: number }[]): RoutineStep => ({ kind: "SET", actions });
 const wait = (minutes: number): RoutineStep => ({ kind: "WAIT", minutes });
+const call = (routineId: string): RoutineStep => ({ kind: "ROUTINE", routineId });
 
 describe("RoutineRunner", () => {
   it("issues every action in a step before any completes", async () => {
@@ -97,8 +112,8 @@ describe("RoutineRunner", () => {
     t.runner.start("r1", [set({ deviceId: "lamp", on: true }, { deviceId: "tv", on: true }), set({ deviceId: "gone", on: true })], null);
     await vi.waitFor(() => expect(t.statuses()).toEqual(["RUNNING", "PARTIAL"]));
     expect(t.events.at(-1)!.run.problems).toEqual([
-      { step: 0, deviceId: "tv", deviceName: "TV", reason: "UNREACHABLE" },
-      { step: 1, deviceId: "gone", deviceName: "Removed device", reason: "REMOVED" },
+      { step: 0, deviceId: "tv", deviceName: "TV", reason: "UNREACHABLE", routineName: null },
+      { step: 1, deviceId: "gone", deviceName: "Removed device", reason: "REMOVED", routineName: null },
     ]);
   });
 
@@ -120,7 +135,7 @@ describe("RoutineRunner", () => {
     t.waits[0]!.release();
     await vi.waitFor(() => expect(t.statuses()).toEqual(["RUNNING", "PARTIAL"]));
     expect(t.commands).toHaveLength(1);
-    expect(t.events.at(-1)!.run.problems).toEqual([{ step: 2, deviceId: "lamp", deviceName: "Lamp", reason: "NO_ACCESS" }]);
+    expect(t.events.at(-1)!.run.problems).toEqual([{ step: 2, deviceId: "lamp", deviceName: "Lamp", reason: "NO_ACCESS", routineName: null }]);
   });
 
   it("ignores access for full-access runs", async () => {
@@ -135,7 +150,7 @@ describe("RoutineRunner", () => {
     t.runner.start("r1", [set({ deviceId: "lamp", on: true, brightness: 20 }), set({ deviceId: "lamp", brightness: 20 })], null);
     await vi.waitFor(() => expect(t.statuses()).toEqual(["RUNNING", "PARTIAL"]));
     expect(t.commands).toEqual([{ deviceId: "lamp", patch: { on: true } }]);
-    expect(t.events.at(-1)!.run.problems).toEqual([{ step: 1, deviceId: "lamp", deviceName: "Lamp", reason: "NOT_READY" }]);
+    expect(t.events.at(-1)!.run.problems).toEqual([{ step: 1, deviceId: "lamp", deviceName: "Lamp", reason: "NOT_READY", routineName: null }]);
   });
 
   it("stop aborts a wait and reports STOPPED", async () => {
@@ -175,9 +190,97 @@ describe("RoutineRunner", () => {
   });
 });
 
+describe("RoutineRunner: called routines", () => {
+  it("runs a called routine inline and reports where it is", async () => {
+    const t = setup([lamp, tv], { r2: { name: "R2", steps: [wait(5), set({ deviceId: "tv", on: true })] } });
+    t.runner.start("r1", [set({ deviceId: "lamp", on: true }), call("r2")], null);
+    await vi.waitFor(() => expect(t.waits).toHaveLength(1));
+    expect(t.waits[0]!.ms).toBe(5 * 60_000);
+    const atWait = t.events.at(-1)!.run;
+    expect(atWait.currentStep).toBe(1);
+    expect(atWait.currentPath).toEqual([{ routineName: "R2", step: 0, stepCount: 2 }]);
+    expect(atWait.waitUntil).toEqual(new Date(2026, 10, 9, 20, 5));
+    expect(t.events[0]!.run.currentPath).toEqual([]);
+    t.waits[0]!.release();
+    await vi.waitFor(() => expect(t.statuses()).toEqual(["RUNNING", "OK"]));
+    expect(t.commands.map((c) => c.deviceId)).toEqual(["lamp", "tv"]);
+    expect(t.events.filter((e) => e.run.status === "OK")).toHaveLength(1);
+    expect(t.events.at(-1)!.run.currentPath).toEqual([]);
+  });
+
+  it("stop while waiting inside a called routine stops the whole chain", async () => {
+    const t = setup([lamp, tv], { r2: { name: "R2", steps: [wait(5), set({ deviceId: "tv", on: true })] } });
+    t.runner.start("r1", [set({ deviceId: "lamp", on: true }), call("r2"), set({ deviceId: "lamp", on: false })], null);
+    await vi.waitFor(() => expect(t.waits).toHaveLength(1));
+    expect(t.runner.stop("r1")).toBe(true);
+    await vi.waitFor(() => expect(t.statuses()).toEqual(["RUNNING", "STOPPED"]));
+    await new Promise((r) => setTimeout(r, 10));
+    expect(t.commands.map((c) => c.deviceId)).toEqual(["lamp"]);
+    expect(t.statuses()).toEqual(["RUNNING", "STOPPED"]);
+  });
+
+  it("a removed routine is a problem and later steps still run", async () => {
+    const t = setup([lamp]);
+    t.runner.start("r1", [set({ deviceId: "lamp", on: true }), call("r2"), set({ deviceId: "lamp", on: false })], null);
+    await vi.waitFor(() => expect(t.statuses()).toEqual(["RUNNING", "PARTIAL"]));
+    expect(t.events.at(-1)!.run.problems).toEqual([{ step: 1, reason: "ROUTINE_REMOVED", deviceId: null, deviceName: null, routineName: null }]);
+    expect(t.commands).toHaveLength(2);
+  });
+
+  it("only a removed routine means FAILED", async () => {
+    const t = setup([]);
+    t.runner.start("r1", [call("r2")], null);
+    await vi.waitFor(() => expect(t.statuses()).toEqual(["RUNNING", "FAILED"]));
+  });
+
+  it("a routine the runner can't use is NO_ACCESS", async () => {
+    const t = setup([lamp], { r2: "NO_ACCESS" });
+    t.runner.start("r1", [call("r2"), set({ deviceId: "lamp", on: true })], { userId: "ann" });
+    await vi.waitFor(() => expect(t.statuses()).toEqual(["RUNNING", "PARTIAL"]));
+    expect(t.events.at(-1)!.run.problems).toEqual([{ step: 0, reason: "NO_ACCESS", deviceId: null, deviceName: null, routineName: null }]);
+  });
+
+  it("a routine that fails to load is UNREACHABLE and later steps still run", async () => {
+    const t = setup([lamp], { r2: "THROW" });
+    t.runner.start("r1", [call("r2"), set({ deviceId: "lamp", on: true })], null);
+    await vi.waitFor(() => expect(t.statuses()).toEqual(["RUNNING", "PARTIAL"]));
+    expect(t.events.at(-1)!.run.problems).toEqual([{ step: 0, reason: "UNREACHABLE", deviceId: null, deviceName: null, routineName: null }]);
+    expect(t.commands).toHaveLength(1);
+    expect(t.runner.isRunning("r1")).toBe(false);
+  });
+
+  it("a device problem inside a called routine names that routine", async () => {
+    const t = setup([lamp], { r2: { name: "R2", steps: [set({ deviceId: "gone", on: true })] } });
+    t.runner.start("r1", [set({ deviceId: "lamp", on: true }), call("r2")], null);
+    await vi.waitFor(() => expect(t.statuses()).toEqual(["RUNNING", "PARTIAL"]));
+    expect(t.events.at(-1)!.run.problems).toEqual([{ step: 1, deviceId: "gone", deviceName: "Removed device", reason: "REMOVED", routineName: "R2" }]);
+  });
+
+  it("stops nesting past the limit", async () => {
+    const t = setup([lamp], {
+      r2: { name: "R2", steps: [call("r3")] },
+      r3: { name: "R3", steps: [set({ deviceId: "lamp", on: true }), call("r4")] },
+      r4: { name: "R4", steps: [set({ deviceId: "lamp", on: false })] },
+    });
+    t.runner.start("r1", [call("r2")], null);
+    await vi.waitFor(() => expect(t.statuses()).toEqual(["RUNNING", "PARTIAL"]));
+    expect(t.events.at(-1)!.run.problems).toEqual([{ step: 0, reason: "NESTED_TOO_DEEP", deviceId: null, deviceName: null, routineName: "R3" }]);
+    expect(t.routineCalls.map((c) => c.id)).toEqual(["r2", "r3"]);
+    expect(t.commands).toEqual([{ deviceId: "lamp", patch: { on: true } }]);
+  });
+
+  it("runs called routines as the caller", async () => {
+    const t = setup([lamp], { r2: { name: "R2", steps: [set({ deviceId: "lamp", on: true })] } });
+    t.runner.start("r1", [call("r2")], { userId: "ann" });
+    await vi.waitFor(() => expect(t.statuses()).toEqual(["RUNNING", "OK"]));
+    expect(t.routineCalls).toEqual([{ id: "r2", runAs: { userId: "ann" } }]);
+    expect(t.accessCalls).toEqual(["ann"]);
+  });
+});
+
 describe("outcome", () => {
   it("is OK without problems, FAILED when everything failed, else PARTIAL", () => {
-    const p = { step: 0, deviceId: "a", deviceName: "A", reason: "UNREACHABLE" as const };
+    const p = { step: 0, deviceId: "a", deviceName: "A", reason: "UNREACHABLE" as const, routineName: null };
     expect(outcome(0, [])).toBe("OK");
     expect(outcome(2, [])).toBe("OK");
     expect(outcome(2, [p])).toBe("PARTIAL");
