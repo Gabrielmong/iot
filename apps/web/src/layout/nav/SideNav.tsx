@@ -7,6 +7,7 @@ import Tooltip from '@mui/material/Tooltip'
 import { alpha, type Theme } from '@mui/material/styles'
 import { palette } from '../../theme/tokens'
 import { FullScreenButton } from '../FullScreenButton'
+import { ReloadAppButton } from '../ReloadAppButton'
 import { NavBrand } from './NavBrand'
 import { NavContent, type NavProps } from './NavContent'
 
@@ -30,6 +31,7 @@ export function SideNav({ homeName, collapsed, onToggle, ...rest }: Props) {
     >
       <NavBrand homeName={homeName} showName={!collapsed} />
       <Stack direction={collapsed ? 'column' : 'row'} spacing={0.5} sx={{ alignItems: 'center' }}>
+        <ReloadAppButton placement="right" />
         <FullScreenButton placement="right" />
         <Tooltip title={toggleLabel} placement="right">
           <IconButton aria-label={toggleLabel} aria-expanded={!collapsed} onClick={onToggle} size="small" sx={{ color: 'text.secondary' }}>

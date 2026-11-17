@@ -5,6 +5,7 @@ import IconButton from '@mui/material/IconButton'
 import Toolbar from '@mui/material/Toolbar'
 import { FullScreenButton } from './FullScreenButton'
 import { NavBrand } from './nav/NavBrand'
+import { ReloadAppButton } from './ReloadAppButton'
 
 type Props = { homeName: string; menuOpen: boolean; onMenu: () => void }
 
@@ -17,7 +18,8 @@ export function MobileTopBar({ homeName, menuOpen, onMenu }: Props) {
           <MenuIcon />
         </IconButton>
         <NavBrand homeName={homeName} />
-        <Box sx={{ ml: 'auto' }}>
+        <Box sx={{ ml: 'auto', display: 'flex', gap: 0.5 }}>
+          <ReloadAppButton />
           <FullScreenButton />
         </Box>
       </Toolbar>
