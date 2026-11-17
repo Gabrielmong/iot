@@ -6,6 +6,7 @@ import Stack from '@mui/material/Stack'
 import Tooltip from '@mui/material/Tooltip'
 import { alpha, type Theme } from '@mui/material/styles'
 import { palette } from '../../theme/tokens'
+import { FullScreenButton } from '../FullScreenButton'
 import { NavBrand } from './NavBrand'
 import { NavContent, type NavProps } from './NavContent'
 
@@ -28,11 +29,14 @@ export function SideNav({ homeName, collapsed, onToggle, ...rest }: Props) {
       sx={{ alignItems: 'center', justifyContent: 'space-between', minHeight: 64, px: collapsed ? 1 : 2, py: collapsed ? 1.5 : 0 }}
     >
       <NavBrand homeName={homeName} showName={!collapsed} />
-      <Tooltip title={toggleLabel} placement="right">
-        <IconButton aria-label={toggleLabel} aria-expanded={!collapsed} onClick={onToggle} size="small" sx={{ color: 'text.secondary' }}>
-          {collapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
-        </IconButton>
-      </Tooltip>
+      <Stack direction={collapsed ? 'column' : 'row'} spacing={0.5} sx={{ alignItems: 'center' }}>
+        <FullScreenButton placement="right" />
+        <Tooltip title={toggleLabel} placement="right">
+          <IconButton aria-label={toggleLabel} aria-expanded={!collapsed} onClick={onToggle} size="small" sx={{ color: 'text.secondary' }}>
+            {collapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
+          </IconButton>
+        </Tooltip>
+      </Stack>
     </Stack>
   )
   return (
