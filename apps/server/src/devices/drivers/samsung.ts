@@ -16,6 +16,7 @@ import {
 } from "@home/protocols";
 import { DeviceNotReadyError, DeviceOfflineError, PairingRejectedError } from "../errors.js";
 import type { DeviceRecord, Discovered, DiscoveryReport, Driver, DriverContext, PairingSession, StatePatch, TvApp, TvCapability } from "../types.js";
+import { macOf } from "./device-mac.js";
 import { LinkRegistry } from "./link-registry.js";
 import { SamsungLink, type SamsungRemoteLike } from "./samsung-link.js";
 
@@ -53,11 +54,6 @@ export function parseSamsungSecret(secretPlain: string | undefined): SamsungPair
   }
   return undefined;
 }
-
-const macOf = (d: DeviceRecord): string | undefined => {
-  const mac = (d.config as { mac?: unknown } | null)?.mac;
-  return typeof mac === "string" ? mac : undefined;
-};
 
 function toDiscovered(ip: string, info: SamsungInfo): Discovered {
   const mac = info.wifiMac ? parseMac(info.wifiMac) : undefined;

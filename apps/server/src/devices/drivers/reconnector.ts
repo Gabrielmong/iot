@@ -30,6 +30,13 @@ export class Reconnector {
     return delay;
   }
 
+  /** Starts the backoff over and brings a waiting attempt forward to at most `ms` from now (e.g. after waking the device). */
+  soon(ms: number): void {
+    this.backoff.reset();
+    const remaining = this.timer.remainingMs;
+    if (remaining !== undefined && remaining > ms) this.timer.schedule(ms, this.attempt);
+  }
+
   cancel(): void {
     this.timer.cancel();
     this.stable.cancel();

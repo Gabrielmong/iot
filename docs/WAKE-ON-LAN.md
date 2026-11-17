@@ -44,3 +44,11 @@ For a reliable status, give the PC a fixed IP: either a DHCP reservation in the 
 - A user can wake a PC only if an admin granted them that PC in the device's Access dialog.
 - Guests can never be given a PC.
 - The app can't turn PCs off.
+
+## TVs
+
+Samsung and Android/Google TVs are woken with the same magic packet. Nothing needs to be entered by hand. The app learns a TV's MAC address from the server's ARP table the first time it sees the TV turned on (Samsung TVs also report it themselves).
+
+- **On the TV:** turn on Wake-on-LAN / Wake-on-Wi-Fi (sometimes called "Network standby"). Without it, a TV in deep standby can't be reached.
+- **Android/Google TVs:** while the TV keeps its remote connection in light standby, the app turns it on with the POWER key. Once the connection drops, the TV shows as *Off* (not *Offline*) if its MAC is known. Turning it on then sends the magic packet and reconnects. If the TV wakes only its network and leaves the screen off, the app presses POWER once it reconnects (within 2 minutes of the request).
+- A TV whose MAC was never learned still shows *Offline* while unreachable. Turn it on once by hand while the server is running, and wait for discovery (about a minute).

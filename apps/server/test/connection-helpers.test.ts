@@ -44,6 +44,29 @@ describe("Reconnector", () => {
     await vi.advanceTimersByTimeAsync(1);
     expect(attempt).toHaveBeenCalledTimes(1);
   });
+
+  it("soon() restarts the backoff and pulls a waiting attempt forward", async () => {
+    const attempt = vi.fn();
+    const r = new Reconnector(attempt, { initialMs: 1000 });
+    r.failed("transient");
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(r.failed("transient")).toBe(2000);
+    r.soon(500);
+    await vi.advanceTimersByTimeAsync(500);
+    expect(attempt).toHaveBeenCalledTimes(2);
+    expect(r.failed("transient")).toBe(1000);
+    r.soon(5000); // never pushes an attempt back
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(attempt).toHaveBeenCalledTimes(3);
+  });
+
+  it("soon() schedules nothing when no attempt is waiting", async () => {
+    const attempt = vi.fn();
+    const r = new Reconnector(attempt, { initialMs: 1000 });
+    r.soon(500);
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(attempt).not.toHaveBeenCalled();
+  });
 });
 
 describe("Reconnector stability", () => {

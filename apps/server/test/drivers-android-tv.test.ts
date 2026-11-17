@@ -21,10 +21,11 @@ class FakeRemote extends EventEmitter {
   readonly keys: number[] = [];
   readonly links: string[] = [];
   connected = false;
-  constructor(readonly host: string) {
+  constructor(readonly host: string, private readonly reachable = true) {
     super();
   }
   async connect() {
+    if (!this.reachable) throw new Error("The TV did not answer");
     this.connected = true;
   }
   sendKey(code: number) {
@@ -52,6 +53,7 @@ async function start(over: Partial<AndroidTvDriverOptions> = {}) {
     search: async () => [],
     fetchText: async () => DESC,
     probe: async () => true,
+    lookupMac: async () => undefined,
     remote: (host) => {
       const r = new FakeRemote(host);
       remotes.push(r);
@@ -83,6 +85,12 @@ describe("AndroidTvDriver discovery", () => {
     expect(probed.sort()).toEqual(["192.168.0.163", "192.168.0.50"]);
     expect(ctx.discoveredDevices.at(-1)).toEqual({ brand: "ANDROID_TV", kind: "TV", externalId: UUID, ip: "192.168.0.163", name: "Living room TV", model: "Smart TV Pro" });
     expect(ctx.discoveredDevices.filter((d) => d.externalId === UUID)).toHaveLength(1);
+  });
+
+  it("stores the TV's MAC from the ARP table for Wake-on-LAN", async () => {
+    const { ctx } = await start({ search: async () => [chromecast("192.168.0.163")], lookupMac: async (ip) => (ip === "192.168.0.163" ? "3c:01:ef:aa:bb:cc" : undefined) });
+    await driver!.discoverNow!();
+    expect(ctx.discoveredDevices.at(-1)).toMatchObject({ externalId: UUID, config: { mac: "3c:01:ef:aa:bb:cc" } });
   });
 
   it("fetches the description from the replying IP, whatever LOCATION says", async () => {
@@ -169,6 +177,72 @@ describe("AndroidTvDriver control", () => {
     await tick();
     expect(remotes).toHaveLength(2);
     expect(ctx.lastState(d.id)?.online).toBe(true);
+  });
+});
+
+describe("AndroidTvDriver Wake-on-LAN", () => {
+  const MAC = "3c:01:ef:aa:bb:cc";
+
+  /** A TV whose remote port is closed while `asleep.value` is true. */
+  async function sleepyTv(asleep: { value: boolean }) {
+    const sent: string[] = [];
+    const remotes: FakeRemote[] = [];
+    const { ctx } = await start({
+      send: async (mac) => void sent.push(mac),
+      remote: (host) => {
+        const r = new FakeRemote(host, !asleep.value);
+        remotes.push(r);
+        return r;
+      },
+    });
+    return { ctx, sent, remotes };
+  }
+
+  it("an unreachable TV with a MAC is asleep: shown off, and woken by a magic packet", async () => {
+    const asleep = { value: true };
+    const { ctx, sent, remotes } = await sleepyTv(asleep);
+    const d = tv({ config: { mac: MAC } });
+    await driver!.sync([d]);
+    await tick();
+    expect(ctx.lastState(d.id)).toEqual({ online: true, on: false });
+
+    await driver!.setState(d, { on: false });
+    expect(sent).toEqual([]);
+
+    await driver!.setState(d, { on: true });
+    expect(sent).toEqual([MAC]);
+    asleep.value = false;
+    await tick();
+    const live = remotes.at(-1)!;
+    expect(live.connected).toBe(true);
+    live.emit("power", false); // woke only its network
+    expect(live.keys).toEqual([26]);
+    expect(ctx.lastState(d.id)).toEqual({ online: true, on: true });
+  });
+
+  it("a TV that wakes with its screen on gets no POWER press", async () => {
+    const asleep = { value: true };
+    const { remotes } = await sleepyTv(asleep);
+    const d = tv({ config: { mac: MAC } });
+    await driver!.sync([d]);
+    await tick();
+    await driver!.setState(d, { on: true });
+    asleep.value = false;
+    await tick();
+    const live = remotes.at(-1)!;
+    live.emit("power", true);
+    live.emit("power", false); // later turned off on the TV: no wake intent left
+    expect(live.keys).toEqual([]);
+  });
+
+  it("without a MAC an unreachable TV stays offline and can't be turned on", async () => {
+    const { ctx, sent } = await sleepyTv({ value: true });
+    const d = tv();
+    await driver!.sync([d]);
+    await tick();
+    expect(ctx.lastState(d.id)).toEqual({ online: false });
+    await expect(driver!.setState(d, { on: true })).rejects.toThrow();
+    expect(sent).toEqual([]);
   });
 });
 

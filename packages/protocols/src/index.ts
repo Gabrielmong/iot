@@ -50,6 +50,7 @@ export { broadcastAddresses } from './wol/broadcast-addresses.js';
 export { sendMagicPacket, WOL_PORT } from './wol/send.js';
 export type { SendMagicPacketOptions } from './wol/send.js';
 export { probeTcp } from './net/tcp-probe.js';
+export { lookupMac, macFromNeighborTable } from './net/neighbor-mac.js';
 export { ssdpSearch, parseSsdpReply, SSDP_ADDRESS, SSDP_PORT } from './ssdp/search.js';
 export type { SsdpReply, SsdpSearchOptions } from './ssdp/search.js';
 export { createClientCertificate, certSha256 } from './androidtv/certificate.js';

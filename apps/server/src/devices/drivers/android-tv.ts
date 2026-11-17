@@ -5,7 +5,9 @@ import {
   AndroidTvPairingFailedError,
   AndroidTvRemote,
   createClientCertificate,
+  lookupMac,
   probeTcp,
+  sendMagicPacket,
   ssdpSearch,
   type AndroidTvPairingResult,
   type ClientCertificate,
@@ -18,6 +20,7 @@ import type { DeviceRecord, Discovered, DiscoveryReport, Driver, DriverContext, 
 import { AndroidTvLink, type RemoteLike } from "./android-tv-link.js";
 import { ANDROID_TV_APPS, androidAppLink, androidKeyCode, describeAndroidTv, isChromecast, parsePairedTv, uuidFromUsn } from "./android-tv-mapping.js";
 import type { BackoffOptions } from "./backoff.js";
+import { macOf } from "./device-mac.js";
 import { LinkRegistry } from "./link-registry.js";
 
 /** The parts of AndroidTvPairing the driver uses (a fake in tests). */
@@ -34,6 +37,10 @@ export interface AndroidTvDriverOptions {
   remote?: (host: string, paired: PairedTv) => RemoteLike;
   pairing?: (host: string, cert: ClientCertificate) => Promise<PairingLike>;
   createCert?: () => ClientCertificate;
+  /** The MAC of a host just reached on the LAN (from the ARP table), for Wake-on-LAN. */
+  lookupMac?: (ip: string) => Promise<string | undefined>;
+  /** Wake-on-LAN. */
+  send?: (mac: string) => Promise<void>;
   bindAddress?: string;
   discoveryIntervalMs?: number;
   backoff?: Partial<BackoffOptions>;
@@ -83,7 +90,7 @@ export class AndroidTvDriver implements Driver {
     sendKey: async (device, key) => this.link(device).sendKey(androidKeyCode(key)),
     launchApp: async (device, app) => this.link(device).launch(androidAppLink(app)),
     apps: () => ANDROID_TV_APPS,
-    canPowerOn: () => true, // POWER is a key; the TV keeps its remote port open in standby
+    canPowerOn: () => true, // POWER is a key while the TV keeps its remote port open; Wake-on-LAN once it drops off
     startPairing: (device) => this.startPairing(device),
   };
 
@@ -103,7 +110,7 @@ export class AndroidTvDriver implements Driver {
     this.links.sync(
       devices,
       (d) => d.id,
-      (d) => JSON.stringify([d.ip, d.secretPlain]),
+      (d) => JSON.stringify([d.ip, d.secretPlain, macOf(d)]),
       (d) => {
         const paired = parsePairedTv(d.secretPlain);
         if (!paired) {
@@ -113,7 +120,10 @@ export class AndroidTvDriver implements Driver {
         if (!d.ip) return undefined;
         const ip = d.ip;
         const create = this.opts.remote ?? ((host: string, p: PairedTv) => new AndroidTvRemote(host, p));
-        const link = new AndroidTvLink(d.id, () => create(ip, paired), ctx, this.opts.backoff);
+        const mac = macOf(d);
+        const send = this.opts.send ?? ((m: string) => sendMagicPacket(m));
+        const wake = mac ? () => send(mac) : undefined;
+        const link = new AndroidTvLink(d.id, () => create(ip, paired), ctx, this.opts.backoff, wake);
         link.start();
         return link;
       },
@@ -122,7 +132,7 @@ export class AndroidTvDriver implements Driver {
 
   async setState(device: DeviceRecord, patch: StatePatch): Promise<void> {
     const link = this.link(device);
-    if (patch.on !== undefined) link.setPower(patch.on);
+    if (patch.on !== undefined) await link.setPower(patch.on);
   }
 
   async discoverNow(): Promise<DiscoveryReport> {
@@ -143,11 +153,16 @@ export class AndroidTvDriver implements Driver {
     return this.describe(ip);
   }
 
-  /** The TV at `ip` when it accepts the remote port and serves a device description; else undefined. */
+  /**
+   * The TV at `ip` when it accepts the remote port and serves a device description; else undefined. Its
+   * MAC (for Wake-on-LAN) is read from the ARP table, which the probe just filled.
+   */
   private async describe(ip: string, uuid?: string): Promise<Discovered | undefined> {
     try {
       if (!(await (this.opts.probe ?? probe)(ip, [ANDROID_TV_REMOTE_PORT], PROBE_TIMEOUT_MS))) return undefined;
-      return describeAndroidTv(ip, await (this.opts.fetchText ?? fetchText)(descUrl(ip)), uuid);
+      const tv = describeAndroidTv(ip, await (this.opts.fetchText ?? fetchText)(descUrl(ip)), uuid);
+      const mac = tv && (await (this.opts.lookupMac ?? lookupMac)(ip));
+      return tv && mac ? { ...tv, config: { mac } } : tv;
     } catch {
       return undefined;
     }
