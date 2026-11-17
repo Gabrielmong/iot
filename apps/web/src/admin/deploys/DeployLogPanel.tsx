@@ -10,13 +10,16 @@ type Props = {
   live: boolean
   /** Height rules from the layout (beside the list on desktop, under a row on mobile). */
   sx?: SxProps<Theme>
+  /** Shown when there's no log. */
+  emptyText?: string
+  ariaLabel?: string
 }
 
 /**
  * The selected event's log on a dark monospace surface. Opens at the last line and follows new lines
  * until the user scrolls up; then "Jump to latest" brings them back. Remount (key) per event.
  */
-export function DeployLogPanel({ log, loading, live, sx }: Props) {
+export function DeployLogPanel({ log, loading, live, sx, emptyText = 'No log for this event.', ariaLabel = 'Deploy log' }: Props) {
   const { ref, pinned, onScroll, jumpToEnd } = useStickToBottom<HTMLPreElement>(log)
   return (
     <Box sx={[{ position: 'relative', display: 'flex', minHeight: 0 }, ...(Array.isArray(sx) ? sx : [sx])]}>
@@ -24,7 +27,7 @@ export function DeployLogPanel({ log, loading, live, sx }: Props) {
         component="pre"
         ref={ref}
         onScroll={onScroll}
-        aria-label="Deploy log"
+        aria-label={ariaLabel}
         aria-live={live ? 'polite' : undefined}
         sx={{
           m: 0,
@@ -44,7 +47,7 @@ export function DeployLogPanel({ log, loading, live, sx }: Props) {
           wordBreak: 'break-word',
         }}
       >
-        {log ?? (loading ? 'Loading…' : 'No log for this event.')}
+        {log ?? (loading ? 'Loading…' : emptyText)}
       </Box>
       {!pinned && (
         <Button

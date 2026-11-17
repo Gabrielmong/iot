@@ -9,10 +9,49 @@ export class GitHubError extends Error {
   constructor(
     message: string,
     readonly status?: number,
+    /** Rate-limit errors: when GitHub accepts requests again. */
+    readonly resetAt?: Date,
   ) {
     super(message);
     this.name = 'GitHubError';
   }
+}
+
+/** A request answered from an ETag: `changed: false` is a 304 (free against the rate limit). */
+export type Conditional<T> = { changed: false } | { changed: true; data: T; etag?: string };
+
+export interface ApiRun {
+  id: number;
+  run_attempt: number;
+  name: string;
+  head_sha: string;
+  status: string;
+  conclusion: string | null;
+  created_at: string;
+  updated_at: string;
+  html_url: string;
+  display_title: string;
+  head_commit: { message: string; timestamp: string } | null;
+}
+
+export interface ApiStep {
+  name: string;
+  number: number;
+  status: string;
+  conclusion: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+}
+
+export interface ApiJob {
+  id: number;
+  name: string;
+  status: string;
+  conclusion: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  html_url: string;
+  steps?: ApiStep[];
 }
 
 interface ApiCommit {
@@ -59,7 +98,9 @@ export class GitHub {
     if (res.status === 403 || res.status === 429) {
       // 403 is a missing token permission (the token itself is fine) unless it is the rate limit.
       if (res.status === 429 || res.headers.get('x-ratelimit-remaining') === '0') {
-        throw new GitHubError('GitHub rate limit reached; trying again later', res.status);
+        const reset = Number(res.headers.get('x-ratelimit-reset'));
+        const resetAt = Number.isFinite(reset) && reset > 0 ? new Date(reset * 1000) : undefined;
+        throw new GitHubError('GitHub rate limit reached; trying again later', res.status, resetAt);
       }
       throw new GitHubError(
         'GitHub token is missing a permission: it needs Contents, Actions and Metadata: Read on this repo',
@@ -73,6 +114,51 @@ export class GitHub {
     const res = await this.request(path, { Accept: 'application/vnd.github+json' });
     if (!res.ok) throw new GitHubError(`GitHub answered ${res.status}`, res.status);
     return (await res.json()) as T;
+  }
+
+  /** GET with If-None-Match; a 304 answers `changed: false`. */
+  private async conditional<B, T>(path: string, etag: string | undefined, pick: (body: B) => T): Promise<Conditional<T>> {
+    const res = await this.request(path, {
+      Accept: 'application/vnd.github+json',
+      ...(etag ? { 'If-None-Match': etag } : {}),
+    });
+    if (res.status === 304) return { changed: false };
+    if (!res.ok) throw new GitHubError(`GitHub answered ${res.status}`, res.status);
+    const data = pick((await res.json()) as B);
+    const next = res.headers.get('etag');
+    return next ? { changed: true, data, etag: next } : { changed: true, data };
+  }
+
+  /** The newest push runs on `branch`, every workflow. */
+  listPushRuns(branch: string, etag?: string): Promise<Conditional<ApiRun[]>> {
+    const q = `branch=${encodeURIComponent(branch)}&event=push&per_page=20`;
+    return this.conditional(`/actions/runs?${q}`, etag, (b: { workflow_runs: ApiRun[] }) => b.workflow_runs);
+  }
+
+  /** The run's jobs (latest attempt) with their steps. */
+  runJobs(runId: number, etag?: string): Promise<Conditional<ApiJob[]>> {
+    return this.conditional(`/actions/runs/${runId}/jobs?per_page=100`, etag, (b: { jobs: ApiJob[] }) => b.jobs);
+  }
+
+  /** A finished job's plain-text log; undefined when GitHub has none (404) or it expired (410). */
+  async jobLog(jobId: number): Promise<string | undefined> {
+    const res = await this.request(`/actions/jobs/${jobId}/logs`, { Accept: 'application/vnd.github+json' }, 'manual');
+    const body = await this.followRedirect(res, "Can't download the job log");
+    if (body.status === 404 || body.status === 410) return undefined;
+    if (!body.ok) throw new GitHubError(`GitHub answered ${body.status}`, body.status);
+    return body.text();
+  }
+
+  /** A redirect's target (a signed storage URL), fetched without the token; other answers as they are. */
+  private async followRedirect(res: Response, failure: string, timeoutMs = API_TIMEOUT_MS): Promise<Response> {
+    if (res.status < 300 || res.status >= 400) return res;
+    const location = res.headers.get('location');
+    if (!location) throw new GitHubError(`GitHub answered ${res.status} without a location`, res.status);
+    try {
+      return await this.fetchImpl(location, { signal: AbortSignal.timeout(timeoutMs) });
+    } catch {
+      throw new GitHubError(failure);
+    }
   }
 
   async head(branch: string): Promise<Commit> {
@@ -135,16 +221,7 @@ export class GitHub {
       'manual',
       DOWNLOAD_TIMEOUT_MS,
     );
-    let body = res;
-    if (res.status >= 300 && res.status < 400) {
-      const location = res.headers.get('location');
-      if (!location) throw new GitHubError(`GitHub answered ${res.status} without a location`, res.status);
-      try {
-        body = await this.fetchImpl(location, { signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS) });
-      } catch {
-        throw new GitHubError("Can't download the APK");
-      }
-    }
+    const body = await this.followRedirect(res, "Can't download the APK", DOWNLOAD_TIMEOUT_MS);
     if (!body.ok) throw new GitHubError(`GitHub answered ${body.status}`, body.status);
     return Buffer.from(await body.arrayBuffer());
   }

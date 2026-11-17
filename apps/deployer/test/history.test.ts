@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFil
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { History } from '../src/history.js';
+import { History, tailLines } from '../src/history.js';
 
 let dir: string;
 let file: string;
@@ -103,5 +103,13 @@ describe('History', () => {
       expect(make().state().releases).toEqual([]);
       err.mockRestore();
     });
+  });
+});
+
+describe('tailLines', () => {
+  it('keeps the last N lines and the trailing newline', () => {
+    expect(tailLines('a\nb\nc\n', 2)).toBe('b\nc\n');
+    expect(tailLines('a\nb\nc', 2)).toBe('b\nc');
+    expect(tailLines('a\nb\n', 5)).toBe('a\nb\n');
   });
 });

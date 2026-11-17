@@ -15,8 +15,12 @@ const ID = '20261110120000000-a1b2c3';
 class FakeDeployer {
   commands: Command[] = [];
   refuse?: OpError;
+  jobLogs = new Map<string, string>();
   async status(): Promise<StatusView> {
-    return { autoDeploy: { on: true }, helperUpdateAvailable: false, events: [] };
+    return { autoDeploy: { on: true }, helperUpdateAvailable: false, events: [], ci: { commits: [] } };
+  }
+  async ciJobLog(id: string): Promise<string | undefined> {
+    return this.jobLogs.get(id);
   }
   async command(c: Command): Promise<{ eventId: string }> {
     if (this.refuse) throw this.refuse;
@@ -112,6 +116,17 @@ describe('api', () => {
     expect(await ok.json()).toEqual({ log: 'one\ntwo\n' });
     expect((await fetch(`${base}/events/x/log`, { headers: auth })).status).toBe(404);
     expect((await fetch(`${base}/events/..%2F..%2Fx/log`, { headers: auth })).status).toBe(404);
+  });
+
+  it('GET /ci/jobs/5/log answers the log', async () => {
+    deployer.jobLogs.set('5', 'step 1\n');
+    const res = await fetch(`${base}/ci/jobs/5/log`, { headers: auth });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ log: 'step 1\n' });
+  });
+
+  it('/ci/jobs/:id/log is 404 when the deployer has none', async () => {
+    expect((await fetch(`${base}/ci/jobs/6/log`, { headers: auth })).status).toBe(404);
   });
 
   it('unknown routes are 404', async () => {

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { Deployer, type Ops } from '../src/deployer.js';
+import type { CiView } from '../src/ci/types.js';
+import { type CiSource, Deployer, type Ops } from '../src/deployer.js';
 import { type CheckState, type Commit, GitHubError } from '../src/github.js';
 import type { DeployEvent } from '../src/history.js';
 import { ROLLBACK_BLOCKED } from '../src/migrations.js';
@@ -65,6 +66,21 @@ function stubOps() {
     hold: () => (state.held = true),
     release: () => release(),
   };
+}
+
+function fakeCi(view: CiView) {
+  return {
+    started: 0,
+    stopped: 0,
+    view: () => view,
+    jobLog: async (id: string) => `log ${id}`,
+    start() {
+      this.started += 1;
+    },
+    async stop() {
+      this.stopped += 1;
+    },
+  } satisfies CiSource & { started: number; stopped: number };
 }
 
 let f: Fixture;
@@ -228,6 +244,24 @@ describe('Deployer.command', () => {
 });
 
 describe('Deployer.status', () => {
+  it('status includes the CI view', async () => {
+    const view: CiView = { commits: [], error: 'GitHub is down', lastCheckAt: 'now' };
+    const ci = fakeCi(view);
+    const withCi = new Deployer(f.ctx, gh, stub.ops, ci);
+    expect((await withCi.status()).ci).toEqual(view);
+    expect((await d.status()).ci).toEqual({ commits: [] });
+  });
+
+  it('start/stop start and stop the CI source, and ciJobLog asks it', async () => {
+    const ci = fakeCi({ commits: [] });
+    const withCi = new Deployer(f.ctx, gh, stub.ops, ci);
+    withCi.start();
+    expect(ci.started).toBe(1);
+    expect(await withCi.ciJobLog('5')).toBe('log 5');
+    await withCi.stop();
+    expect(ci.stopped).toBe(1);
+  });
+
   it('status marks rollback-blocked releases', async () => {
     f.applied = [M1, M2];
     f.addRelease(TARGET, [M1, M2]);

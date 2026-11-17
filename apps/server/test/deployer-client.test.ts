@@ -56,6 +56,24 @@ describe("httpDeployerClient", () => {
     expect(await client.log("zzz")).toBeNull();
   });
 
+  it("ciJobLog encodes the id and returns null when unavailable", async () => {
+    helper.jobLogs.set("a/b", "job log");
+    const client = httpDeployerClient(helper.url, tokenFile());
+    expect(await client.ciJobLog("a/b")).toBe("job log");
+    expect(await client.ciJobLog("9")).toBeNull();
+    expect(await httpDeployerClient(helper.url, undefined).ciJobLog("a/b")).toBeNull();
+  });
+
+  it("gives ciJobLog 30 s (the first read downloads the log from GitHub)", async () => {
+    const timeout = vi.spyOn(AbortSignal, "timeout");
+    try {
+      await httpDeployerClient(helper.url, tokenFile()).ciJobLog("1");
+      expect(timeout).toHaveBeenLastCalledWith(30_000);
+    } finally {
+      timeout.mockRestore();
+    }
+  });
+
   it("posts commands and maps errors", async () => {
     const client = httpDeployerClient(helper.url, tokenFile());
     expect(await client.command({ type: "rollback", sha: "abc1234", by: "Root" })).toBe("evt-1");

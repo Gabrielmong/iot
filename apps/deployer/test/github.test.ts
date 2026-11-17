@@ -220,3 +220,62 @@ describe('GitHub timeouts', () => {
     await expect(new GitHub('o/r', 't', impl).latestAndroidRelease()).rejects.toBeInstanceOf(GitHubError);
   });
 });
+
+describe('GitHub Actions detail', () => {
+  /** Like fake(), but a null body for 304 (a Response can't carry one) and raw text bodies. */
+  function raw(handler: (url: string, n: number) => { status?: number; body?: string | null; headers?: Record<string, string> }) {
+    const calls: Call[] = [];
+    const impl = (async (url: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url: String(url), init });
+      const { status = 200, body = null, headers } = handler(String(url), calls.length);
+      return new Response(status === 304 ? null : body, { status, headers });
+    }) as typeof fetch;
+    return { impl, calls };
+  }
+  const headersOf = (c: Call) => (c.init?.headers ?? {}) as Record<string, string>;
+
+  it('listPushRuns sends If-None-Match and returns changed:false on 304', async () => {
+    const { impl, calls } = raw(() => ({ status: 304 }));
+    expect(await new GitHub('o/r', 't', impl).listPushRuns('main', '"e1"')).toEqual({ changed: false });
+    expect(headersOf(calls[0])['If-None-Match']).toBe('"e1"');
+  });
+
+  it('listPushRuns returns runs and the etag', async () => {
+    const run = { id: 1, name: 'CI', head_sha: 'abc' };
+    const { impl, calls } = raw(() => ({ body: JSON.stringify({ workflow_runs: [run] }), headers: { etag: '"e2"' } }));
+    expect(await new GitHub('o/r', 't', impl).listPushRuns('main')).toEqual({ changed: true, data: [run], etag: '"e2"' });
+    expect(calls[0].url).toBe('https://api.github.com/repos/o/r/actions/runs?branch=main&event=push&per_page=20');
+    expect(headersOf(calls[0])['If-None-Match']).toBeUndefined();
+  });
+
+  it("runJobs asks for the run's jobs", async () => {
+    const job = { id: 5, name: 'test', steps: [] };
+    const { impl, calls } = raw(() => ({ body: JSON.stringify({ jobs: [job] }) }));
+    const out = await new GitHub('o/r', 't', impl).runJobs(42, '"j"');
+    expect(out).toEqual({ changed: true, data: [job] });
+    expect(calls[0].url).toBe('https://api.github.com/repos/o/r/actions/runs/42/jobs?per_page=100');
+    expect(headersOf(calls[0])['If-None-Match']).toBe('"j"');
+  });
+
+  it('jobLog follows the redirect without the token', async () => {
+    const { impl, calls } = raw((_u, n) =>
+      n === 1 ? { status: 302, headers: { location: 'https://logs.example/x' } } : { body: 'line1\nline2' },
+    );
+    expect(await new GitHub('o/r', 'secret', impl).jobLog(9)).toBe('line1\nline2');
+    expect(calls[0].url).toBe('https://api.github.com/repos/o/r/actions/jobs/9/logs');
+    expect(calls[1].url).toBe('https://logs.example/x');
+    expect(JSON.stringify(calls[1].init ?? {})).not.toContain('secret');
+  });
+
+  it.each([404, 410])('jobLog returns undefined on %i', async (status) => {
+    const { impl } = raw(() => ({ status }));
+    expect(await new GitHub('o/r', 't', impl).jobLog(9)).toBeUndefined();
+  });
+
+  it('rate limit error carries resetAt', async () => {
+    const { impl } = raw(() => ({ status: 403, headers: { 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': '1790000000' } }));
+    const err = await new GitHub('o/r', 't', impl).listPushRuns('main').catch((e) => e);
+    expect(err).toBeInstanceOf(GitHubError);
+    expect(err.resetAt.getTime()).toBe(1790000000_000);
+  });
+});

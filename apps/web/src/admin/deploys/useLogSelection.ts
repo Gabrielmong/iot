@@ -1,27 +1,29 @@
 import { useCallback, useState } from 'react'
-import type { DeployEvent } from '../data/useDeployStatus'
+import type { TimelineEntry } from './timeline/buildTimeline'
+import type { Selection } from './timeline/selection'
+import { defaultSelection, findTarget, sameSelection } from './timeline/selectionTargets'
 
 /**
- * Which event's log is open: the one picked, else the running one, else the newest.
- * With `collapsible` (phones, where the log opens under its row) tapping the open row closes it.
+ * Which log is open: the one picked while it still exists, else the default (see `defaultSelection`).
+ * With `collapsible` (phones, where the log opens under its line) tapping the open line closes it.
  */
-export function useLogSelection(events: readonly DeployEvent[], collapsible: boolean) {
-  const [pickedId, setPickedId] = useState<string | null>(null)
+export function useLogSelection(entries: readonly TimelineEntry[], collapsible: boolean) {
+  const [picked, setPicked] = useState<Selection | null>(null)
   const [closed, setClosed] = useState(false)
 
-  const current = events.find((e) => e.id === pickedId) ?? events.find((e) => e.status === 'RUNNING') ?? events[0] ?? null
+  const current = picked && findTarget(entries, picked) ? picked : defaultSelection(entries)
   const selected = collapsible && closed ? null : current
 
   const select = useCallback(
-    (id: string) => {
-      if (collapsible && !closed && id === current?.id) {
+    (s: Selection) => {
+      if (collapsible && !closed && sameSelection(s, current)) {
         setClosed(true)
         return
       }
-      setPickedId(id)
+      setPicked(s)
       setClosed(false)
     },
-    [collapsible, closed, current?.id],
+    [collapsible, closed, current],
   )
 
   return { selected, select }

@@ -51,6 +51,7 @@ export function DeployTopBar({ status, restarting, notBack, ...actions }: Props)
           <CheckLine status={status} />
           {status.helperUpdateAvailable && <Chip size="small" variant="outlined" label="Helper update available" />}
         </Stack>
+        {status.ciError && <Typography variant="body2" color="warning.main">Can't read CI: {status.ciError}</Typography>}
         {restarting && <Alert severity="info">Restarting…</Alert>}
         {notBack && <Alert severity="warning">The app hasn't come back. See 'When the app is down' in docs/RUNNING.md.</Alert>}
         <DeployActions status={status} {...actions} />

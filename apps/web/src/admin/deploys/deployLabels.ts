@@ -37,6 +37,20 @@ export function eventTitle(event: Pick<DeployEvent, 'kind' | 'sha'>): string {
   }
 }
 
+/** A deploy attempt's line on its commit card, which already shows the sha. */
+export function attemptTitle(status: DeployEvent['status']): string {
+  switch (status) {
+    case 'RUNNING':
+      return 'Deploying'
+    case 'SUCCEEDED':
+      return 'Deployed'
+    case 'FAILED':
+      return 'Deploy failed'
+    case 'SKIPPED':
+      return 'Skipped'
+  }
+}
+
 export const whoLabel = (by: string) => (by === 'auto' ? 'Auto' : by)
 
 /** The paused chip. Reasons are "paused by <who>" or e.g. "rolled back to <sha>". */
@@ -60,3 +74,13 @@ export function relativeTime(iso: string, now = Date.now()): string {
   if (minutes < 60 * 24) return `${Math.floor(minutes / 60)} h ago`
   return `${Math.floor(minutes / (60 * 24))} d ago`
 }
+
+/** Who, when, how long and why, for a history event's details line. */
+export function metaLine(event: DeployEvent): string {
+  const parts = [whoLabel(event.by), relativeTime(event.startedAt)]
+  if (event.finishedAt) parts.push(formatDuration(event.startedAt, event.finishedAt))
+  if (event.detail) parts.push(event.detail)
+  return parts.filter(Boolean).join(' · ')
+}
+
+export const showsRollback = (event: DeployEvent) => event.canRollback || Boolean(event.rollbackBlockedReason)

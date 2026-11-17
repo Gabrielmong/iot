@@ -4,7 +4,7 @@ import type { Command, DeployerClient, StatusView } from "./types.js";
 
 /** status and log: the page polls them. */
 const READ_TIMEOUT_MS = 5000;
-/** Commands: Deploy now asks GitHub about each new commit before it answers. */
+/** Commands (Deploy now asks GitHub about each new commit before it answers) and CI job logs. */
 const COMMAND_TIMEOUT_MS = 30_000;
 const unavailable = () => coded("UNAVAILABLE", "The deploy helper isn't running");
 
@@ -39,6 +39,11 @@ export function httpDeployerClient(url: string, tokenFile: string | undefined, f
       const r = await call(`/events/${encodeURIComponent(id)}/log`);
       return r?.status === 200 && typeof r.body.log === "string" ? r.body.log : null;
     },
+    async ciJobLog(id) {
+      // The helper's first read downloads the log from GitHub.
+      const r = await call(`/ci/jobs/${encodeURIComponent(id)}/log`, { timeoutMs: COMMAND_TIMEOUT_MS });
+      return r?.status === 200 && typeof r.body.log === "string" ? r.body.log : null;
+    },
     async command(c: Command) {
       const r = await call("/commands", { method: "POST", body: c, timeoutMs: COMMAND_TIMEOUT_MS });
       if (!r) throw unavailable();
@@ -56,5 +61,6 @@ export function httpDeployerClient(url: string, tokenFile: string | undefined, f
 export const unavailableDeployer: DeployerClient = {
   status: async () => undefined,
   log: async () => null,
+  ciJobLog: async () => null,
   command: async () => Promise.reject(unavailable()),
 };

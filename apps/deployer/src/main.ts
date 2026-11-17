@@ -4,8 +4,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { startApi } from './api.js';
 import { loadConfig, pathsFor } from './config.js';
-import { Deployer } from './deployer.js';
+import { readJobLog } from './ci/ci-job-log.js';
+import { CiStore } from './ci/ci-store.js';
+import { CiWatcher } from './ci/ci-watcher.js';
+import { type CiSource, Deployer } from './deployer.js';
 import { GitHub } from './github.js';
+import { checkError } from './poll.js';
 import { realContext } from './real-context.js';
 import { recoverOnStart } from './recover.js';
 
@@ -22,7 +26,28 @@ async function main(): Promise<void> {
   const ctx = realContext(config, paths, tokens);
   await recoverOnStart(ctx);
 
-  const deployer = new Deployer(ctx, new GitHub(config.githubRepo, tokens.github, undefined, config.ciWorkflowName));
+  const github = new GitHub(config.githubRepo, tokens.github, undefined, config.ciWorkflowName);
+  const store = new CiStore(paths.ci, paths.ciLogs, config.ciKeepCommits, ctx.now);
+  let deployer: Deployer | undefined;
+  const watcher = new CiWatcher({
+    github,
+    store,
+    branch: config.branch,
+    gatingWorkflow: config.ciWorkflowName,
+    idleMs: config.ciIdlePollMs,
+    activeMs: config.ciActivePollMs,
+    now: ctx.now,
+    // CI just went green (or red) on the head: let the deploy loop check now instead of in up to pollMs.
+    onGatingCompleted: () => void deployer?.tick().catch((e: unknown) => console.error('CI nudge failed:', e)),
+    errorText: (e) => checkError(ctx, e),
+  });
+  const ci: CiSource = {
+    view: () => watcher.view(),
+    jobLog: (id) => readJobLog({ id, store, github }),
+    start: () => watcher.start(),
+    stop: () => watcher.stop(),
+  };
+  deployer = new Deployer(ctx, github, undefined, ci);
   const server: Server = await startApi(deployer, { token: tokens.api, logsDir: paths.eventLogs, port: config.apiPort });
   deployer.start();
   console.log(`HomeDeployer listening on 127.0.0.1:${config.apiPort}`);

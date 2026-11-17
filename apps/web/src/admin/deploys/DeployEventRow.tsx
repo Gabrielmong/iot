@@ -1,11 +1,10 @@
 import Box from '@mui/material/Box'
-import Button from '@mui/material/Button'
 import ListItem from '@mui/material/ListItem'
 import ListItemButton from '@mui/material/ListItemButton'
-import Tooltip from '@mui/material/Tooltip'
 import Typography from '@mui/material/Typography'
 import type { DeployEvent } from '../data/useDeployStatus'
-import { eventTitle, formatDuration, relativeTime, statusIcon, whoLabel } from './deployLabels'
+import { RollbackButton } from './RollbackButton'
+import { eventTitle, metaLine, showsRollback, statusIcon } from './deployLabels'
 
 type Props = {
   event: DeployEvent
@@ -19,30 +18,12 @@ type Props = {
 /** Room kept at the end of the details line for the rollback button. */
 const ROLLBACK_ROOM = 136
 
-function metaLine(event: DeployEvent): string {
-  const parts = [whoLabel(event.by), relativeTime(event.startedAt)]
-  if (event.finishedAt) parts.push(formatDuration(event.startedAt, event.finishedAt))
-  if (event.detail) parts.push(event.detail)
-  return parts.filter(Boolean).join(' · ')
-}
-
-function RollbackButton({ event, disabled, onClick }: { event: DeployEvent; disabled: boolean; onClick: () => void }) {
-  const blocked = event.rollbackBlockedReason
-  return (
-    <Tooltip title={blocked ?? ''}>
-      <Box component="span" sx={{ position: 'absolute', right: 8, bottom: 6 }}>
-        <Button size="small" disabled={disabled || Boolean(blocked)} onClick={onClick}>Roll back to this</Button>
-      </Box>
-    </Tooltip>
-  )
-}
-
 /**
  * One history entry: status icon, title and commit message on one line, the details underneath,
  * and a rollback action at the end of the details line where allowed.
  */
 export function DeployEventRow({ event, selected, disabled, onSelect, onRollback }: Props) {
-  const showRollback = event.canRollback || Boolean(event.rollbackBlockedReason)
+  const showRollback = showsRollback(event)
   return (
     <ListItem disablePadding divider sx={{ position: 'relative', display: 'block' }}>
       <ListItemButton
@@ -76,7 +57,9 @@ export function DeployEventRow({ event, selected, disabled, onSelect, onRollback
           </Typography>
         </Box>
       </ListItemButton>
-      {showRollback && <RollbackButton event={event} disabled={disabled} onClick={onRollback} />}
+      {showRollback && (
+        <RollbackButton event={event} disabled={disabled} onClick={onRollback} sx={{ position: 'absolute', right: 8, bottom: 6 }} />
+      )}
     </ListItem>
   )
 }

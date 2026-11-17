@@ -2,7 +2,7 @@ import type { ApolloLink } from '@apollo/client/link'
 import { ApolloProvider } from '@apollo/client/react'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { of, Subject, throwError } from 'rxjs'
-import { deployEventFixture, deployStatusFixture } from '../test/deployFixtures'
+import { ciJobFixture, ciRunFixture, deployCommitFixture, deployEventFixture, deployStatusFixture } from '../test/deployFixtures'
 import { createTestClient, type Handler, reply } from '../test/testClient'
 import { DeploysPage } from './DeploysPage'
 import type { DeployStatus } from './data/useDeployStatus'
@@ -22,6 +22,7 @@ function setup(statusHandler: Handler, extra: Record<string, Handler> = {}) {
   const client = createTestClient({
     DeployStatus: statusHandler,
     DeployLog: (op) => reply({ deployLog: `log of ${op.variables.eventId}` })(op),
+    CiJobLog: (op) => reply({ ciJobLog: `job log ${op.variables.jobId}` })(op),
     ...extra,
   })
   render(
@@ -36,7 +37,7 @@ const statusReply = (o: Partial<DeployStatus> = {}): Handler => reply({ deploySt
 describe('DeploysPage', () => {
   it('shows the running version and auto-deploy state', async () => {
     setup(statusReply({ pausedReason: 'rolled back to abc1234', autoDeploy: false }))
-    expect(await screen.findByText('abc1234')).toBeInTheDocument()
+    expect((await screen.findAllByText('abc1234')).length).toBeGreaterThan(0)
     expect(screen.getAllByText('Tidy the rooms page', { exact: false }).length).toBeGreaterThan(0)
     expect(screen.getByText('Auto-deploy paused: rolled back to abc1234')).toBeInTheDocument()
     expect(screen.getByText(/checked 1 min ago/)).toBeInTheDocument()
@@ -58,7 +59,7 @@ describe('DeploysPage', () => {
   it('selecting an event shows its log', async () => {
     setup(statusReply({ events: [OLD, NEWER] }))
     expect(await screen.findByLabelText('Deploy log')).toHaveTextContent('log of e2')
-    fireEvent.click(screen.getByText('Deploy abc1234'))
+    fireEvent.click(screen.getByText('Deployed'))
     await waitFor(() => expect(screen.getByLabelText('Deploy log')).toHaveTextContent('log of e1'))
   })
 
@@ -132,6 +133,50 @@ describe('DeploysPage', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Deploy now' }))
     expect(await screen.findByText('No green commit to deploy')).toBeInTheDocument()
   })
+
+  it('clicking a finished job shows its CI log', async () => {
+    const failed = ciRunFixture({ state: 'FAILED', jobs: [ciJobFixture({ state: 'FAILED' })] })
+    setup(statusReply({ commits: [deployCommitFixture({ runs: [failed] })], events: [OLD] }))
+    expect(await screen.findByLabelText('Deploy log')).toHaveTextContent('log of e1')
+    fireEvent.click(screen.getByText('test'))
+    await waitFor(() => expect(screen.getByLabelText('CI log')).toHaveTextContent('job log 21'))
+    expect(screen.queryByLabelText('Deploy log')).not.toBeInTheDocument()
+  })
+
+  it('a job log that failed to load is fetched again when the job is reopened', async () => {
+    const failed = ciRunFixture({ state: 'FAILED', jobs: [ciJobFixture({ state: 'FAILED' })] })
+    let calls = 0
+    setup(statusReply({ commits: [deployCommitFixture({ runs: [failed] })], events: [OLD] }), {
+      CiJobLog: (op) => reply({ ciJobLog: calls++ === 0 ? null : 'job log 21' })(op),
+    })
+    expect(await screen.findByLabelText('Deploy log')).toHaveTextContent('log of e1')
+    fireEvent.click(screen.getByText('test'))
+    await waitFor(() => expect(screen.getByLabelText('CI log')).toHaveTextContent('No log for this job.'))
+    fireEvent.click(screen.getByText('Deployed'))
+    await screen.findByLabelText('Deploy log')
+    fireEvent.click(screen.getByText('test'))
+    await waitFor(() => expect(screen.getByLabelText('CI log')).toHaveTextContent('job log 21'))
+  })
+
+  it('a running job shows "Log is available when the job finishes"', async () => {
+    const job = ciJobFixture({ state: 'RUNNING', completedAt: null })
+    setup(statusReply({ commits: [deployCommitFixture({ runs: [ciRunFixture({ state: 'RUNNING', jobs: [job] })] })], events: [] }))
+    expect(await screen.findByText('Log is available when the job finishes')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Open the job in GitHub' })).toHaveAttribute('href', job.url)
+  })
+
+  it('ciError shows "Can\'t read CI: …"', async () => {
+    setup(statusReply({ ciError: 'GitHub rate limit, retrying at 12:30' }))
+    expect(await screen.findByText("Can't read CI: GitHub rate limit, retrying at 12:30")).toBeInTheDocument()
+  })
+
+  it('a status without commits still shows deploy cards', async () => {
+    setup(statusReply({ commits: [], events: [OLD, NEWER] }))
+    const history = await screen.findByRole('list', { name: 'Deploy history' })
+    expect(within(history).getByText('Deployed')).toBeInTheDocument()
+    expect(within(history).getByText('Skipped', { selector: 'p' })).toBeInTheDocument()
+    expect(within(history).getByText('9be3a25')).toBeInTheDocument()
+  })
 })
 
 describe('DeploysPage on a phone', () => {
@@ -152,11 +197,11 @@ describe('DeploysPage on a phone', () => {
     const history = await screen.findByRole('list', { name: 'Deploy history' })
     await waitFor(() => expect(within(history).getByLabelText('Deploy log')).toHaveTextContent('log of e2'))
 
-    fireEvent.click(screen.getByText('Deploy abc1234'))
+    fireEvent.click(screen.getByText('Deployed'))
     await waitFor(() => expect(within(history).getByLabelText('Deploy log')).toHaveTextContent('log of e1'))
     expect(screen.getAllByLabelText('Deploy log')).toHaveLength(1)
 
-    fireEvent.click(screen.getByText('Deploy abc1234'))
+    fireEvent.click(screen.getByText('Deployed'))
     expect(screen.queryByLabelText('Deploy log')).not.toBeInTheDocument()
   })
 })

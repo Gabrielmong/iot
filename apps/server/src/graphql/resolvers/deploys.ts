@@ -16,6 +16,10 @@ export const deployResolvers = {
       requireAdmin(ctx);
       return ctx.deps.deployer.log(eventId);
     },
+    ciJobLog: async (_: unknown, { jobId }: { jobId: string }, ctx: ApiContext) => {
+      requireAdmin(ctx);
+      return ctx.deps.deployer.ciJobLog(jobId);
+    },
   },
   Mutation: {
     deployNow: (_: unknown, __: unknown, ctx: ApiContext) => send(ctx, { type: "deployNow" }),

@@ -63,20 +63,29 @@ function readJson(req: IncomingMessage): Promise<unknown> {
   });
 }
 
-type Api = Pick<Deployer, 'status' | 'command'>;
+type Api = Pick<Deployer, 'status' | 'command' | 'ciJobLog'>;
+
+/** The decoded path segment, or a 404 when it doesn't decode. */
+function segment(raw: string): string {
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    throw new HttpError(404, 'Not found');
+  }
+}
 
 async function route(api: Api, opts: ApiOptions, req: IncomingMessage, res: ServerResponse): Promise<void> {
   const path = new URL(req.url ?? '/', `http://${HOST}`).pathname;
   if (req.method === 'GET' && path === '/status') return send(res, 200, await api.status());
   const logMatch = /^\/events\/([^/]+)\/log$/.exec(path);
   if (req.method === 'GET' && logMatch) {
-    let id: string;
-    try {
-      id = decodeURIComponent(logMatch[1]!);
-    } catch {
-      throw new HttpError(404, 'Not found');
-    }
-    const log = readLog(opts.logsDir, id);
+    const log = readLog(opts.logsDir, segment(logMatch[1]!));
+    if (log === undefined) throw new HttpError(404, 'Not found');
+    return send(res, 200, { log });
+  }
+  const jobMatch = /^\/ci\/jobs\/([^/]+)\/log$/.exec(path);
+  if (req.method === 'GET' && jobMatch) {
+    const log = await api.ciJobLog(segment(jobMatch[1]!));
     if (log === undefined) throw new HttpError(404, 'Not found');
     return send(res, 200, { log });
   }

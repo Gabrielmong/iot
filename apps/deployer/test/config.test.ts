@@ -34,6 +34,9 @@ describe('loadConfig', () => {
       branch: 'main',
       serviceName: 'HomeControl',
       ciWorkflowName: 'CI',
+      ciIdlePollMs: 20000,
+      ciActivePollMs: 5000,
+      ciKeepCommits: 50,
     });
   });
 
@@ -63,6 +66,8 @@ describe('pathsFor', () => {
   it('joins under the root with windows separators', () => {
     const p = pathsFor('C:\\H');
     expect(p.current).toBe('C:\\H\\current');
+    expect(p.ci).toMatch(/^C:.H.deployer.ci.json$/);
+    expect(p.ciLogs).toMatch(/^C:.H.deployer.ci-logs$/);
     expect(p.envFile).toBe('C:\\H\\shared\\.env');
     expect(pathsFor('C:\\HomeControl').android).toBe('C:\\HomeControl\\shared\\android');
     expect(p.history).toBe('C:\\H\\deployer\\history.json');

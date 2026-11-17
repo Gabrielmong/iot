@@ -13,6 +13,11 @@ export interface DeployerConfig {
   pollMs: number;
   ciWorkflowName: string;
   ciTimeoutMs: number;
+  /** CI watcher: check cadence with no run in progress, and while one is. */
+  ciIdlePollMs: number;
+  ciActivePollMs: number;
+  /** Commits whose workflow runs are kept for the Deploys page. */
+  ciKeepCommits: number;
   keepReleases: number;
   keepBackups: number;
   maxEvents: number;
@@ -61,6 +66,8 @@ export interface Paths {
   eventLogs: string;
   backups: string;
   history: string;
+  ci: string;
+  ciLogs: string;
 }
 
 const DEFAULTS = {
@@ -70,6 +77,9 @@ const DEFAULTS = {
   pollMs: 120_000,
   ciWorkflowName: 'CI',
   ciTimeoutMs: 1_800_000,
+  ciIdlePollMs: 20_000,
+  ciActivePollMs: 5_000,
+  ciKeepCommits: 50,
   keepReleases: 5,
   keepBackups: 10,
   maxEvents: 50,
@@ -106,6 +116,8 @@ export function pathsFor(root: string): Paths {
     eventLogs: j(data, 'logs'),
     backups: j(data, 'backups'),
     history: j(data, 'history.json'),
+    ci: j(data, 'ci.json'),
+    ciLogs: j(data, 'ci-logs'),
   };
 }
 

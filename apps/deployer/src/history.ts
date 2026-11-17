@@ -126,10 +126,14 @@ export function readLog(logsDir: string, id: string, maxLines = 2000): string | 
   if (!EVENT_ID.test(id)) return undefined;
   const file = join(logsDir, `${id}.log`);
   if (!existsSync(file)) return undefined;
-  const text = readFileSync(file, 'utf8');
+  return tailLines(readFileSync(file, 'utf8'), maxLines);
+}
+
+/** The last `max` lines of `text`, keeping its trailing newline. */
+export function tailLines(text: string, max: number): string {
   const lines = text.split('\n');
   const trailing = lines[lines.length - 1] === '';
   const body = trailing ? lines.slice(0, -1) : lines;
-  if (body.length <= maxLines) return text;
-  return body.slice(-maxLines).join('\n') + (trailing ? '\n' : '');
+  if (body.length <= max) return text;
+  return body.slice(-max).join('\n') + (trailing ? '\n' : '');
 }

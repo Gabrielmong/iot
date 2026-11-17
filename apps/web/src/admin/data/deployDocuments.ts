@@ -14,6 +14,15 @@ export const DEPLOY_STATUS = graphql(`
       events {
         id kind status sha message by startedAt finishedAt detail canRollback rollbackBlockedReason
       }
+      commits {
+        sha message committedAt
+        runs {
+          id attempt workflow gatesDeploy state createdAt updatedAt url
+          jobs { id name state startedAt completedAt url steps { number name state startedAt completedAt } }
+        }
+      }
+      ciError
+      ciCheckedAt
     }
   }
 `)
@@ -21,6 +30,12 @@ export const DEPLOY_STATUS = graphql(`
 export const DEPLOY_LOG = graphql(`
   query DeployLog($eventId: ID!) {
     deployLog(eventId: $eventId)
+  }
+`)
+
+export const CI_JOB_LOG = graphql(`
+  query CiJobLog($jobId: ID!) {
+    ciJobLog(jobId: $jobId)
   }
 `)
 

@@ -199,6 +199,16 @@ nssm start HomeControl
 
 A deploy does not replace the helper itself. After changing `apps/deployer`, pull in a clone and re-run `install-deployer.ps1` with the same arguments (it is re-runnable and keeps the tokens).
 
+The CI pipeline on the Deploys page (each commit's workflow runs, jobs and steps, and CI job logs) comes from the helper, so it appears only after the helper has been updated this way. Until then the page shows deploys grouped by commit, without CI. The helper's CI watcher uses the same GitHub token and needs no new permissions. Its settings in `deployer.json` are all optional:
+
+| Setting | Default | What it does |
+|---|---|---|
+| `ciIdlePollMs` | `20000` | How often it checks for new runs while none is in progress. These checks are conditional requests, which don't count against GitHub's rate limit when nothing changed. |
+| `ciActivePollMs` | `5000` | How often it checks while a run is in progress. |
+| `ciKeepCommits` | `50` | How many commits' runs it keeps, in `deployer\ci.json`. Cached job logs are in `deployer\ci-logs\`. |
+
+When the `CI` run on the newest commit finishes, the helper checks for a deploy right away instead of waiting for its next 2-minute poll.
+
 ### Deploy without the helper
 
 Remove the helper service first (`install-service.ps1` refuses to run while it exists, because the two would fight over `HomeControl`): `nssm stop HomeDeployer; nssm remove HomeDeployer confirm`. Then run `install-service.ps1` from a clone as in section 3; that points `HomeControl` back at that clone. To go back to automatic deploys, re-run `install-deployer.ps1` (it keeps the tokens, `shared\` and `releases\`).

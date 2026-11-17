@@ -1,4 +1,5 @@
 import { actualRunning } from './actual-running.js';
+import type { CiView } from './ci/types.js';
 import { syncAndroidApk } from './android-apk.js';
 import type { Command } from './command.js';
 import { deployCommit } from './deploy.js';
@@ -23,7 +24,23 @@ export interface StatusView {
   busy?: string; // e.g. "Deploying abc1234"
   helperUpdateAvailable: boolean;
   events: MarkedEvent[];
+  ci: CiView;
 }
+
+/** The CI watcher as the deployer sees it: started and stopped with it, shown in status. */
+export interface CiSource {
+  view(): CiView;
+  jobLog(id: string): Promise<string | undefined>;
+  start(): void;
+  stop(): Promise<void>;
+}
+
+const NO_CI: CiSource = {
+  view: () => ({ commits: [] }),
+  jobLog: async () => undefined,
+  start: () => undefined,
+  stop: async () => undefined,
+};
 
 export interface Ops {
   deployCommit: typeof deployCommit;
@@ -52,6 +69,7 @@ export class Deployer {
     private readonly ctx: OpContext,
     private readonly github: CommitSource,
     private readonly ops: Ops = REAL_OPS,
+    private readonly ci: CiSource = NO_CI,
   ) {
     this.eligibility = new RollbackEligibility(ctx);
   }
@@ -59,6 +77,7 @@ export class Deployer {
   start(): void {
     this.stopped = false;
     this.schedule(FIRST_TICK_MS);
+    this.ci.start();
   }
 
   /** Stops polling and waits (up to 10 min) for the operation in flight; never interrupts one. */
@@ -66,10 +85,12 @@ export class Deployer {
     this.stopped = true;
     this.shuttingDown = true;
     clearTimeout(this.timer);
+    const ciStopped = this.ci.stop();
     let timeout: NodeJS.Timeout | undefined;
     const limit = new Promise<void>((r) => (timeout = setTimeout(r, STOP_WAIT_MS)));
     await Promise.race([Promise.allSettled([this.ticking, this.inFlight]), limit]);
     clearTimeout(timeout);
+    await ciStopped;
   }
 
   private schedule(ms: number): void {
@@ -218,6 +239,12 @@ export class Deployer {
       ...(this.busy ? { busy: this.busy } : {}),
       helperUpdateAvailable: this.helperUpdate,
       events: await this.eligibility.mark(this.ctx.history.events(), running?.sha),
+      ci: this.ci.view(),
     };
+  }
+
+  /** A finished CI job's log; undefined when there is none. */
+  ciJobLog(id: string): Promise<string | undefined> {
+    return this.ci.jobLog(id);
   }
 }

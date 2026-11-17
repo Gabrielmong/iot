@@ -7,6 +7,8 @@ export const FAKE_TOKEN = "fake-token";
 export class FakeDeployer {
   status: StatusView = { autoDeploy: { on: true }, helperUpdateAvailable: false, events: [] };
   logs = new Map<string, string>();
+  /** CI job logs by job id. */
+  jobLogs = new Map<string, string>();
   /** Commands received, as posted. */
   commands: unknown[] = [];
   /** Set to make the next commands fail with this status and message. */
@@ -29,6 +31,11 @@ export class FakeDeployer {
       const m = /^\/events\/([^/]+)\/log$/.exec(path);
       if (req.method === "GET" && m) {
         const log = this.logs.get(decodeURIComponent(m[1]!));
+        return log === undefined ? send(404, { error: "Not found" }) : send(200, { log });
+      }
+      const job = /^\/ci\/jobs\/([^/]+)\/log$/.exec(path);
+      if (req.method === "GET" && job) {
+        const log = this.jobLogs.get(decodeURIComponent(job[1]!));
         return log === undefined ? send(404, { error: "Not found" }) : send(200, { log });
       }
       if (req.method === "POST" && path === "/commands") {

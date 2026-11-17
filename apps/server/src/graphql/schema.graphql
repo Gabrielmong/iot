@@ -55,8 +55,13 @@ input CameraSettingsInput { nightVision: NightVision  privacy: Boolean  flip: Bo
 enum DeployEventKind { DEPLOY ROLLBACK RESTART PAUSE RESUME }
 enum DeployEventStatus { RUNNING SUCCEEDED FAILED SKIPPED }
 type DeployEvent { id: ID!  kind: DeployEventKind!  status: DeployEventStatus!  sha: String  message: String  by: String!  startedAt: String!  finishedAt: String  detail: String  canRollback: Boolean!  rollbackBlockedReason: String }
+enum CiState { QUEUED RUNNING SUCCEEDED FAILED CANCELLED SKIPPED UNKNOWN }
+type CiStep { number: Int!  name: String!  state: CiState!  startedAt: String  completedAt: String }
+type CiJob { id: ID!  name: String!  state: CiState!  startedAt: String  completedAt: String  url: String!  steps: [CiStep!]! }
+type CiRun { id: ID!  attempt: Int!  workflow: String!  gatesDeploy: Boolean!  state: CiState!  createdAt: String!  updatedAt: String!  url: String!  jobs: [CiJob!]! } # gatesDeploy: the deploy waits on this workflow
+type DeployCommit { sha: String!  message: String!  committedAt: String!  runs: [CiRun!]! } # a commit on the deploy branch with its GitHub Actions runs
 type DeployRunning { sha: String!  message: String!  deployedAt: String! }
-type DeployStatus { available: Boolean!  running: DeployRunning  autoDeploy: Boolean!  pausedReason: String  lastCheckAt: String  lastCheckError: String  busy: String  helperUpdateAvailable: Boolean!  events: [DeployEvent!]! } # available false: every other field empty/default
+type DeployStatus { available: Boolean!  running: DeployRunning  autoDeploy: Boolean!  pausedReason: String  lastCheckAt: String  lastCheckError: String  busy: String  helperUpdateAvailable: Boolean!  events: [DeployEvent!]!  commits: [DeployCommit!]!  ciError: String  ciCheckedAt: String } # available false: every other field empty/default
 type Query {
   loginUsers: [User!]!            # public
   homeName: String!               # public; the household's display name ("Home" until set)
@@ -78,6 +83,7 @@ type Query {
   otherCameraGroups: [CameraGroup!]!  # admin; other users' personal groups
   deployStatus: DeployStatus!         # admin
   deployLog(eventId: ID!): String     # admin; null when the event has no log
+  ciJobLog(jobId: ID!): String        # admin; a finished CI job's log, null when unavailable
   cameraControls(deviceId: ID!): CameraControls # null: not a visible camera, or no known controls
 }
 type Mutation {

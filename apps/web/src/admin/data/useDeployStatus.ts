@@ -5,6 +5,9 @@ import { DEPLOY_STATUS } from './deployDocuments'
 
 export type DeployStatus = DeployStatusQuery['deployStatus']
 export type DeployEvent = DeployStatus['events'][number]
+export type DeployCommit = DeployStatus['commits'][number]
+export type CiRun = DeployCommit['runs'][number]
+export type CiJob = CiRun['jobs'][number]
 
 const IDLE_POLL_MS = 5000
 const BUSY_POLL_MS = 2000

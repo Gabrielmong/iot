@@ -52,6 +52,8 @@ function tempPaths(root: string): Paths {
     eventLogs: j('deployer', 'logs'),
     backups: j('deployer', 'backups'),
     history: j('deployer', 'history.json'),
+    ci: j('deployer', 'ci.json'),
+    ciLogs: j('deployer', 'ci-logs'),
   };
 }
 

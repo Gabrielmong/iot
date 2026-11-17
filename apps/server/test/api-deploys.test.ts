@@ -30,7 +30,7 @@ const MUTATIONS = ["deployNow", "restartApp", "pauseAutoDeploy", "resumeAutoDepl
 describe("deploys", () => {
   it("forbids users and guests", async () => {
     await start();
-    const queries = [STATUS, `{ deployLog(eventId: "e1") }`, ...MUTATIONS.map((m) => `mutation { ${m} }`)];
+    const queries = [STATUS, `{ deployLog(eventId: "e1") }`, `{ ciJobLog(jobId: "1") }`, ...MUTATIONS.map((m) => `mutation { ${m} }`)];
     for (const [name, role] of [["Bob", "USER"], ["Gus", "GUEST"]] as const) {
       const u = await h.user(name, role);
       for (const q of queries) expect(codes(await h.gql(u.token, q))).toEqual(["FORBIDDEN"]);
@@ -63,6 +63,69 @@ describe("deploys", () => {
       helperUpdateAvailable: true,
       events: [event],
     });
+  });
+
+  const CI = `{ deployStatus { ciError ciCheckedAt commits { sha message committedAt runs { id attempt workflow gatesDeploy state createdAt updatedAt url jobs { id name state startedAt completedAt url steps { number name state startedAt completedAt } } } } } }`;
+
+  it("maps CI commits for admins", async () => {
+    await start();
+    helper.status = {
+      autoDeploy: { on: true },
+      helperUpdateAvailable: false,
+      events: [],
+      ci: {
+        error: "GitHub is down",
+        lastCheckAt: "2026-11-16T12:00:00Z",
+        commits: [
+          {
+            sha: "abc1234",
+            message: "Fix",
+            committedAt: "2026-11-16T10:00:00Z",
+            firstSeenAt: "2026-11-16T10:00:05Z",
+            runs: [
+              {
+                id: 11, attempt: 2, workflow: "CI", gatesDeploy: true, state: "RUNNING", completed: false, jobsFinal: false,
+                createdAt: "c", updatedAt: "u", url: "https://gh/run",
+                jobs: [{ id: 21, name: "test", state: "RUNNING", startedAt: "s", url: "https://gh/job", steps: [{ number: 1, name: "pnpm test", state: "RUNNING" }] }],
+              },
+            ],
+          },
+        ],
+      },
+    };
+    const admin = await h.user("Root", "ADMIN");
+    const { deployStatus: s } = await h.ok(admin.token, CI);
+    expect(s).toEqual({
+      ciError: "GitHub is down",
+      ciCheckedAt: "2026-11-16T12:00:00Z",
+      commits: [
+        {
+          sha: "abc1234",
+          message: "Fix",
+          committedAt: "2026-11-16T10:00:00Z",
+          runs: [
+            {
+              id: "11", attempt: 2, workflow: "CI", gatesDeploy: true, state: "RUNNING", createdAt: "c", updatedAt: "u", url: "https://gh/run",
+              jobs: [{ id: "21", name: "test", state: "RUNNING", startedAt: "s", completedAt: null, url: "https://gh/job", steps: [{ number: 1, name: "pnpm test", state: "RUNNING", startedAt: null, completedAt: null }] }],
+            },
+          ],
+        },
+      ],
+    });
+  });
+
+  it("an old helper without ci gives commits [] and ciError null", async () => {
+    await start();
+    const admin = await h.user("Root", "ADMIN");
+    expect((await h.ok(admin.token, CI)).deployStatus).toEqual({ ciError: null, ciCheckedAt: null, commits: [] });
+  });
+
+  it("ciJobLog answers the helper's log, null on 404", async () => {
+    await start();
+    helper.jobLogs.set("21", "ok");
+    const admin = await h.user("Root", "ADMIN");
+    expect((await h.ok(admin.token, `{ ciJobLog(jobId: "21") }`)).ciJobLog).toBe("ok");
+    expect((await h.ok(admin.token, `{ ciJobLog(jobId: "22") }`)).ciJobLog).toBeNull();
   });
 
   it("reports unavailable when the helper is down", async () => {
