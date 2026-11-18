@@ -2,6 +2,8 @@
 
 The app wakes a PC by sending a "magic packet" to its network adapter. The packet is a UDP broadcast to port 9 on the home network. A PC only wakes if it is set up for it. Check each PC once against the list below.
 
+To also sleep, shut down or restart a PC and see its live stats, install the HomeAgent on it: [HOME-AGENT.md](HOME-AGENT.md).
+
 The same steps appear in the app: Admin › Devices › Add PC › "How to set up Wake-on-LAN". Keep the two in step (`apps/web/src/device/computer/wakeSetupSteps.ts`).
 
 ## Setup checklist (each PC)
@@ -72,7 +74,7 @@ For confirmable PCs, every On/Off change is kept for 30 days. The PC's page show
 - Admins can wake any PC.
 - A user can wake a PC only if an admin granted them that PC in the device's Access dialog.
 - Guests can never be given a PC.
-- The app can't turn PCs off.
+- The app can't turn PCs off without the HomeAgent. With it, it can also sleep, shut down and restart them: see [HOME-AGENT.md](HOME-AGENT.md).
 
 ## TVs
 

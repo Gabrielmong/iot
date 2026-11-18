@@ -2,7 +2,7 @@ import { ApolloProvider } from '@apollo/client/react'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { of } from 'rxjs'
-import { deviceFixture } from '../../test/deviceFixtures'
+import { computerFixture, deviceFixture } from '../../test/deviceFixtures'
 import { createTestClient } from '../../test/testClient'
 import type { DeviceDetail } from '../types'
 import { ComputerCard } from './ComputerCard'
@@ -50,7 +50,7 @@ describe('ComputerCard', () => {
 
   it("shows Didn't wake with a link to the setup checklist for admins", () => {
     const wake = { status: 'FAILED' as const, seconds: null }
-    const d = { ...office(false), computer: { confirmable: true, rdpAddress: null, wake } }
+    const d = { ...office(false), computer: computerFixture({ wake }) }
     setup(d, true)
     expect(screen.getByText("Didn't wake")).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /check the setup checklist/i }))
@@ -59,7 +59,7 @@ describe('ComputerCard', () => {
 
   it("a regular user sees Didn't wake without the checklist link", () => {
     const wake = { status: 'FAILED' as const, seconds: null }
-    setup({ ...office(false), computer: { confirmable: true, rdpAddress: null, wake } })
+    setup({ ...office(false), computer: computerFixture({ wake }) })
     expect(screen.getByText("Didn't wake")).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /check the setup checklist/i })).toBeNull()
   })

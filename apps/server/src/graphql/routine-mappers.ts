@@ -13,7 +13,7 @@ function toApiStep(step: RoutineStep, exists: ReadonlySet<string>, routineNames:
   return {
     kind: "SET",
     waitMinutes: null,
-    actions: step.actions.map((a) => ({ deviceId: a.deviceId, deviceExists: exists.has(a.deviceId), on: a.on ?? null, brightness: a.brightness ?? null, color: a.color ?? null, colorTempK: a.colorTempK ?? null })),
+    actions: step.actions.map((a) => ({ deviceId: a.deviceId, deviceExists: exists.has(a.deviceId), on: a.on ?? null, brightness: a.brightness ?? null, color: a.color ?? null, colorTempK: a.colorTempK ?? null, pcPower: a.pcPower ?? null })),
   };
 }
 

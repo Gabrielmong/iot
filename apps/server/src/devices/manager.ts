@@ -6,6 +6,7 @@ import { computerInfo, type ComputerInfo } from "./computers/computer-info.js";
 import { probeSeen } from "./computers/computer-config.js";
 import { PowerHistory } from "./computers/power-history.js";
 import { WakeTracker } from "./computers/wake-tracker.js";
+import { AgentPresence } from "./computers/agent-presence.js";
 import { deviceNotFound, deviceNotReady, deviceUnreachable } from "./command-errors.js";
 import { assertPatchFits, notReadyReason } from "./command-guard.js";
 import { COMMAND_TIMEOUT_MS, runCommand } from "./command-runner.js";
@@ -62,6 +63,8 @@ export class DeviceManager {
   readonly history: PowerHistory;
   /** Follows each PC's latest wake. */
   readonly wakes: WakeTracker;
+  /** PCs whose HomeAgent is connected. */
+  private readonly presence = new AgentPresence();
 
   constructor(
     private readonly prisma: PrismaClient,
@@ -110,8 +113,18 @@ export class DeviceManager {
   }
 
   /** Wake progress, RDP address and confirmability of a PC; null for other devices. */
-  computerInfo(row: { id: string; kind: string; ip: string | null; config: unknown }): ComputerInfo | null {
-    return computerInfo(row, this.wakes.get(row.id));
+  computerInfo(row: { id: string; kind: string; ip: string | null; config: unknown; agentTokenHash?: string | null; agentVersion?: number | null }): (ComputerInfo & { deviceId: string }) | null {
+    const info = computerInfo(row, this.wakes.get(row.id), this.presence.isUp(row.id));
+    return info && { ...info, deviceId: row.id }; // deviceId: for the viewer's permission fields
+  }
+
+  /** A PC's HomeAgent connected (the PC is on) or disconnected (off until the probe sees it); always published. */
+  agentPresence(deviceId: string, connected: boolean): void {
+    if (!this.adopted.has(deviceId)) return;
+    this.presence.set(deviceId, connected);
+    const before = this.cache.get(deviceId);
+    this.onState(deviceId, { ...before, online: true, on: connected }, "AGENT");
+    if (this.cache.get(deviceId) === before) this.publishState(deviceId, before); // only `computer.agent` changed
   }
 
   /** Throws GraphQLError with code DEVICE_UNREACHABLE, DEVICE_NOT_READY or NOT_FOUND. */
@@ -128,7 +141,8 @@ export class DeviceManager {
     const result = await runCommand(driver, device, patch, this.log, this.commandTimeoutMs);
     if (result.ok) {
       if (device.kind === "COMPUTER" && patch.on === true) {
-        this.wakes.start(deviceId, { hasIp: !!device.ip, confirmable: probeSeen(device), alreadyOn });
+        const agent = !!device.agentTokenHash;
+        this.wakes.start(deviceId, { hasIp: !!device.ip || agent, confirmable: probeSeen(device) || agent, alreadyOn });
       }
       return;
     }
@@ -213,6 +227,7 @@ export class DeviceManager {
     this.adopted.remove(ids);
     for (const id of ids) this.trials.remove(id);
     for (const id of ids) this.wakes.cancel(id);
+    for (const id of ids) this.presence.forget(id);
     this.cache.retain(this.adopted.all());
     for (const id of ids) this.statuses.forget(id);
     this.discovery.forgetSightings();
@@ -274,20 +289,23 @@ export class DeviceManager {
     if (outcome.ipChanged && driver) await this.syncDriver(driver);
   }
 
-  private onState(deviceId: string, state: DeviceState): void {
+  private onState(deviceId: string, reported: DeviceState, from: "DRIVER" | "AGENT" = "DRIVER"): void {
     if (!this.adopted.has(deviceId)) {
-      if (this.trials.has(deviceId)) this.trialStates.set(deviceId, state);
+      if (this.trials.has(deviceId)) this.trialStates.set(deviceId, reported);
       return; // otherwise a late report from a stopped link, or a removed device
     }
     const before = this.cache.get(deviceId).on;
+    const state = from === "DRIVER" ? this.presence.adjust(deviceId, reported, before) : reported;
     const changed = this.cache.set(deviceId, state);
+    const waking = this.wakes.get(deviceId)?.status === "WAKING";
     if (state.on === true) this.wakes.sawOn(deviceId);
     if (!changed) return;
     if (this.adopted.brandOf(deviceId) === "WOL" && typeof state.on === "boolean" && state.on !== before) {
       const on = state.on;
+      const source = from === "AGENT" ? "AGENT" : on && waking ? "WAKE" : "PROBE";
       this.powerChanges.push(async () => {
         try {
-          await this.history.record(deviceId, on);
+          await this.history.record(deviceId, on, source);
         } finally {
           this.publishState(deviceId, this.cache.get(deviceId));
         }

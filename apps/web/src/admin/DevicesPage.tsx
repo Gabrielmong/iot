@@ -50,6 +50,7 @@ export function DevicesPage() {
           counts={healthCounts(mine)}
           actions={
             <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
+              <Button onClick={() => setDialog({ type: 'adoptPc' })}>Adopt this PC</Button>
               <Button onClick={() => setDialog({ type: 'addComputer' })}>Add PC</Button>
               <Button onClick={() => setDialog({ type: 'addTv' })}>Add TV</Button>
               <Button onClick={() => setDialog({ type: 'kasa' })}>Add Kasa by IP</Button>

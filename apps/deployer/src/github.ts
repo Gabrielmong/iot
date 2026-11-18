@@ -213,6 +213,23 @@ export class GitHub {
     return best;
   }
 
+  /** The newest `agent-v<version>` release that carries both `HomeAgent.exe` and `agent.json`. */
+  async latestAgentRelease(): Promise<{ version: number; exeAssetId: number; jsonAssetId: number } | undefined> {
+    const releases = await this.get<Array<{ tag_name: string; assets: Array<{ name: string; id: number }> }>>(
+      '/releases?per_page=30',
+    );
+    let best: { version: number; exeAssetId: number; jsonAssetId: number } | undefined;
+    for (const r of releases) {
+      const m = /^agent-v(\d+)$/.exec(r.tag_name);
+      const exe = r.assets.find((a) => a.name === 'HomeAgent.exe');
+      const json = r.assets.find((a) => a.name === 'agent.json');
+      if (!m || !exe || !json) continue;
+      const version = Number(m[1]);
+      if (!best || version > best.version) best = { version, exeAssetId: exe.id, jsonAssetId: json.id };
+    }
+    return best;
+  }
+
   /** The asset's bytes. The redirect target (a signed storage URL) is fetched without the token. */
   async downloadAsset(assetId: number): Promise<Buffer> {
     const res = await this.request(

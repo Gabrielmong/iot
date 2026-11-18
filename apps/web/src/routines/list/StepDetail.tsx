@@ -68,7 +68,7 @@ export function StepDetail({ index, step, state, run, deviceNames, now }: Props)
           const result = !showResults ? '' : problem ? ` ⚠ ${reasonText(problem.reason)}` : ' ✓'
           return (
             <Typography key={a.deviceId} variant="body2" sx={{ color: problem && showResults ? 'warning.main' : 'text.secondary' }}>
-              {`${name}: ${describeAction({ on: a.on ?? null, brightness: a.brightness ?? null, color: a.color ?? null, colorTempK: a.colorTempK ?? null })}${result}`}
+              {`${name}: ${describeAction({ on: a.on ?? null, brightness: a.brightness ?? null, color: a.color ?? null, colorTempK: a.colorTempK ?? null, pcPower: a.pcPower ?? null })}${result}`}
             </Typography>
           )
         })}

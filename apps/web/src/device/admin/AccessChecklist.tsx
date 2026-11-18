@@ -2,6 +2,7 @@ import Checkbox from '@mui/material/Checkbox'
 import FormControlLabel from '@mui/material/FormControlLabel'
 import FormGroup from '@mui/material/FormGroup'
 import Typography from '@mui/material/Typography'
+import { Fragment, type ReactNode } from 'react'
 import type { AdminUser } from '../../admin/types'
 
 type Props = {
@@ -10,10 +11,12 @@ type Props = {
   onToggle: (userId: string) => void
   /** Cameras and computers can't be granted to guests, so guests aren't listed for them. */
   guestHidden?: boolean
+  /** Extra controls under each checked non-admin user (a PC's Live stats / Power actions). */
+  renderGranted?: (user: AdminUser) => ReactNode
 }
 
 /** Admins first (always on, disabled), then one checkbox per other user. */
-export function AccessChecklist({ users, selected, onToggle, guestHidden = false }: Props) {
+export function AccessChecklist({ users, selected, onToggle, guestHidden = false, renderGranted }: Props) {
   const admins = users.filter((u) => u.role === 'ADMIN')
   const others = users.filter((u) => u.role !== 'ADMIN' && !(guestHidden && u.role === 'GUEST'))
   return (
@@ -22,11 +25,10 @@ export function AccessChecklist({ users, selected, onToggle, guestHidden = false
         <FormControlLabel key={u.id} control={<Checkbox checked disabled />} label={<AdminLabel name={u.name} />} />
       ))}
       {others.map((u) => (
-        <FormControlLabel
-          key={u.id}
-          control={<Checkbox checked={selected.has(u.id)} onChange={() => onToggle(u.id)} />}
-          label={u.name}
-        />
+        <Fragment key={u.id}>
+          <FormControlLabel control={<Checkbox checked={selected.has(u.id)} onChange={() => onToggle(u.id)} />} label={u.name} />
+          {selected.has(u.id) && renderGranted?.(u)}
+        </Fragment>
       ))}
     </FormGroup>
   )

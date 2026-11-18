@@ -18,6 +18,7 @@ function source(commits: Commit[], states: Record<string, CheckState>) {
       commitsSince: async () => commits,
       treeSha: async () => undefined,
       latestAndroidRelease: async () => undefined,
+      latestAgentRelease: async () => undefined,
       downloadAsset: async () => Buffer.alloc(0),
       checkState: async (s: string) => {
         asked.push(s);

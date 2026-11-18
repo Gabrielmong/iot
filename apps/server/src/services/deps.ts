@@ -10,6 +10,9 @@ import type { GrantEventSource } from "./grant-events.js";
 import type { SessionEventSource } from "./session-events.js";
 import type { DeployerClient } from "../deployer/types.js";
 import type { RoutineService } from "../routines/run-service.js";
+import type { AgentHub } from "../agent/hub.js";
+import type { PcPowerRelay } from "../agent/power.js";
+import type { StatsBroker } from "../agent/stats-broker.js";
 
 export type Clock = () => Date;
 export type TuyaRegion = TuyaCloudOptions["region"];
@@ -66,6 +69,12 @@ export interface ServiceDeps extends ContextDeps {
   tvPairings: PendingPairings;
   /** Running routines; saving or deleting a routine stops its current run. */
   routines: RoutineService;
+  /** Live HomeAgent connections (PCs with an agent). */
+  agents: AgentHub;
+  /** Sleep / shut down / restart requests to agents, and their progress. */
+  pcPower: PcPowerRelay;
+  /** Live PC stats, sampled only while someone watches. */
+  pcStats: StatsBroker;
   /** The deploy helper on localhost (admin deploy page). */
   deployer: DeployerClient;
   /** Server-side log; never given secrets. */

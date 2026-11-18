@@ -15,6 +15,8 @@ import { HueSlider } from '../../device/controls/HueSlider'
 import { WhiteTempSlider } from '../../device/controls/WhiteTempSlider'
 import { describeAction } from '../lib/describeAction'
 import type { DraftAction } from '../lib/draft'
+import { hasAgent } from '../lib/usableDevices'
+import { PcPowerChoice } from './PcPowerChoice'
 import { PowerChoice } from './PowerChoice'
 
 type Props = { device: Device; action: DraftAction; onSave: (action: DraftAction) => void; onClose: () => void }
@@ -22,8 +24,8 @@ type Props = { device: Device; action: DraftAction; onSave: (action: DraftAction
 const DEFAULT_BRIGHTNESS = 100
 
 /**
- * What a step sets one device to. Power is On / Off / Leave as is (lights only); lights that support
- * it also get brightness and either a color or a white temperature. Untouched settings stay as they are.
+ * What a step sets one device to. Power is On / Off / Leave as is (lights only), or for a PC Wake, plus
+ * Sleep and Shut down when it runs HomeAgent. Lights that support it also get brightness and either a color or a white temperature. Untouched settings stay as they are.
  */
 export function ActionDialog({ device, action, onSave, onClose }: Props) {
   const [draft, setDraft] = useState(action)
@@ -36,7 +38,15 @@ export function ActionDialog({ device, action, onSave, onClose }: Props) {
       <DialogTitle id={titleId}>{device.name}</DialogTitle>
       <DialogContent>
         <Stack spacing={3} sx={{ pt: 1 }}>
-          <PowerChoice value={draft.on} allowLeave={caps.brightness} wakeOnly={device.kind === 'COMPUTER'} onChange={(on) => set({ on })} />
+          {device.kind === 'COMPUTER' ? (
+            <PcPowerChoice
+              value={draft.pcPower ?? 'WAKE'}
+              agent={hasAgent(device)}
+              onChange={(v) => set(v === 'WAKE' ? { on: true, pcPower: null } : { on: null, pcPower: v })}
+            />
+          ) : (
+            <PowerChoice value={draft.on} allowLeave={caps.brightness} onChange={(on) => set({ on })} />
+          )}
           {details && caps.brightness && (
             <ClearableSetting set={draft.brightness !== null} onClear={() => set({ brightness: null })}>
               <BrightnessSlider value={draft.brightness ?? DEFAULT_BRIGHTNESS} onCommit={(brightness) => set({ brightness })} />

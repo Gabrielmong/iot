@@ -35,6 +35,18 @@ export const SET_DEVICE_GRANTS = graphql(`
   }
 `)
 
+export const COMPUTER_GRANTS = graphql(`
+  query ComputerGrants($deviceId: ID!) {
+    computerGrants(deviceId: $deviceId) { userId stats power }
+  }
+`)
+
+export const SET_COMPUTER_GRANTS = graphql(`
+  mutation SetComputerGrants($deviceId: ID!, $grants: [ComputerGrantInput!]!) {
+    setComputerGrants(deviceId: $deviceId, grants: $grants) { userId stats power }
+  }
+`)
+
 /** Both return the camera's new source, which the cache merges into the page's Device. */
 export const SET_CAMERA_ONVIF = graphql(`
   mutation SetCameraOnvif($deviceId: ID!, $username: String!, $password: String!, $confirmAddress: String) {

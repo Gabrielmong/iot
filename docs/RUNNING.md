@@ -265,3 +265,11 @@ The first release-signed update won't install over a debug build: uninstall the 
 
 - **"Home couldn't be reached":** tap **Retry**, or **Settings** and enter the address, e.g. `192.168.0.100:4000`. Long-pressing the app icon also offers a **Server settings** shortcut.
 - **No "Get the Android app" link:** the server has no APK yet. Check the `Android` workflow ran with all four secrets set and that the deploy helper has polled since.
+
+## 10. HomeAgent (PC agent)
+
+HomeAgent is a small Windows service for PCs in the app: it lets the app sleep, shut down and restart them and shows their live stats. The `Agent` GitHub workflow builds it on pushes to `main` that change `apps/agent/**` or the workflow file, and publishes release `agent-v<version>` (1000 + the workflow's run number) with `HomeAgent.exe` and `agent.json` (`{"version": n, "sha256": "<hex>"}`). The deploy helper downloads the newest one into `<install root>\shared\agent\` on its normal poll, checking the exe against the SHA-256 in `agent.json` first. The server finds it through `AGENT_DIR`, which `apply-service-settings` writes into the `HomeControl` service settings on the next deploy (`C:\HomeControl\shared\agent`). Installed agents update themselves to newer versions when they next connect.
+
+The helper waits only on the `CI` workflow before deploying, so the `Agent` workflow never holds up a deploy.
+
+How to adopt a PC and what the agent can do: `docs/HOME-AGENT.md`.

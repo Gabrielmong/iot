@@ -22,8 +22,9 @@ export async function setDeviceGrants(deps: Deps, deviceId: string, userIds: str
     if (hiddenFromGuests(device.kind) && users.some(isGuest)) throw badInput(guestRefusalFor(device.kind));
     const wanted = users.filter((u) => u.role !== "ADMIN").map((u) => u.id);
     const before = (await tx.deviceGrant.findMany({ where: { deviceId } })).map((r) => r.userId);
-    await tx.deviceGrant.deleteMany({ where: { deviceId } });
-    await tx.deviceGrant.createMany({ data: wanted.map((userId) => ({ userId, deviceId })) });
+    // Users who keep access keep their PC flags (Live stats, Power): only the difference is written.
+    await tx.deviceGrant.deleteMany({ where: { deviceId, userId: { notIn: wanted } } });
+    await tx.deviceGrant.createMany({ data: wanted.filter((id) => !before.includes(id)).map((userId) => ({ userId, deviceId })) });
     return before.length !== wanted.length || before.some((id) => !wanted.includes(id));
   });
   if (changed) deps.grantEvents.emit("grantsChanged", deviceId);

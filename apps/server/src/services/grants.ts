@@ -32,9 +32,12 @@ export async function setGrants(deps: Pick<ServiceDeps, "prisma" | "pubsub" | "g
       if (hidden) throw badInput(guestRefusalFor(hidden.kind));
     }
     const before = (await tx.deviceGrant.findMany({ where: { userId } })).map((r) => r.deviceId);
-    await tx.deviceGrant.deleteMany({ where: { userId } });
-    await tx.deviceGrant.createMany({ data: ids.map((deviceId) => ({ userId, deviceId })) });
-    return [...before.filter((d) => !ids.includes(d)), ...ids.filter((d) => !before.includes(d))];
+    const removed = before.filter((d) => !ids.includes(d));
+    const added = ids.filter((d) => !before.includes(d));
+    // Only the difference: kept grants keep their PC flags (stats, power).
+    await tx.deviceGrant.deleteMany({ where: { userId, deviceId: { in: removed } } });
+    await tx.deviceGrant.createMany({ data: added.map((deviceId) => ({ userId, deviceId })) });
+    return [...removed, ...added];
   });
   for (const deviceId of changedDevices) deps.grantEvents.emit("grantsChanged", deviceId);
   await publishDevicesChanged(deps.pubsub);

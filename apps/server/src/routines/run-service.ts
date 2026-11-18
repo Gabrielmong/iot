@@ -3,6 +3,8 @@ import { notFound } from "../api-errors.js";
 import type { DeviceManager } from "../devices/manager.js";
 import { ROUTINE_RUN, type RoutineRunPayload } from "../devices/topics.js";
 import type { PrismaClient, RoutineScope, User } from "../generated/prisma/client.js";
+import type { PcPowerRelay } from "../agent/power.js";
+import { pcPermissions } from "../services/computer-grants.js";
 import { canAccessDevice } from "../services/grants.js";
 import { loadCalledRoutine } from "./called-routine-loader.js";
 import { cancellableDelay } from "./cancellable-delay.js";
@@ -16,6 +18,8 @@ export type RoutineServiceOptions = {
   log: Pick<Console, "error">;
   /** Tests replace the real timer. */
   delay?: typeof cancellableDelay;
+  /** Sleeps / shuts down PCs through their agents. */
+  pcPower: Pick<PcPowerRelay, "request">;
 };
 
 const TRY_PREFIX = "try:";
@@ -41,6 +45,11 @@ export class RoutineService {
         const user = await prisma.user.findUnique({ where: { id: userId } });
         return user !== null && canAccessDevice(prisma, user, deviceId);
       },
+      canPower: async (userId, deviceId) => {
+        const user = await prisma.user.findUnique({ where: { id: userId } });
+        return user !== null && (await pcPermissions(prisma, user, deviceId)).power;
+      },
+      pcPower: (deviceId, action, requestedBy) => void opts.pcPower.request(deviceId, action, requestedBy),
       routine: (id, runAs) =>
         loadCalledRoutine(prisma, id, runAs).catch((error: unknown) => {
           opts.log.error("loading a called routine failed", error);
@@ -70,9 +79,9 @@ export class RoutineService {
   }
 
   /** Runs a draft once as `user` (an admin trying a shared draft has full access). Not stored. */
-  tryDraft(user: Pick<User, "id" | "role" | "name">, steps: RoutineStep[], scope: RoutineScope): void {
+  tryDraft(user: Pick<User, "id" | "role" | "name">, steps: RoutineStep[], scope: RoutineScope, name: string): void {
     const full = scope === "SHARED" && user.role === "ADMIN";
-    this.runner.start(tryKey(user.id), steps, full ? null : { userId: user.id }, user.name);
+    this.runner.start(tryKey(user.id), steps, full ? null : { userId: user.id }, user.name, name);
   }
 
   stopTry(userId: string): boolean {
@@ -99,9 +108,9 @@ export class RoutineService {
   }
 
   /** Shared routines run with full access; personal ones as their owner (an admin owner has full access through their role). */
-  private startSaved(row: { id: string; ownerId: string | null; steps: unknown }, startedBy: string | null): void {
+  private startSaved(row: { id: string; name: string; ownerId: string | null; steps: unknown }, startedBy: string | null): void {
     const runAs: RunAs = row.ownerId ? { userId: row.ownerId } : null;
-    this.runner.start(row.id, row.steps as RoutineStep[], runAs, startedBy);
+    this.runner.start(row.id, row.steps as RoutineStep[], runAs, startedBy, row.name);
   }
 
   private enqueue(key: string, run: RunSnapshot): void {

@@ -1,0 +1,87 @@
+name: Agent
+
+on:
+  push:
+    branches: [main]
+    paths: ['apps/agent/**', '.github/workflows/agent.yml']
+  pull_request:
+    paths: ['apps/agent/**', '.github/workflows/agent.yml']
+
+# Read-only by default; only the publish job below gets write access.
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    defaults:
+      run:
+        working-directory: apps/agent
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: apps/agent/go.mod
+          cache-dependency-path: apps/agent/go.sum
+
+      # version = 1000 + run number, like the Android versionCode: agents only take a higher version,
+      # so bump the offset past the last published one if this workflow is ever renamed.
+      - name: Compute version
+        id: version
+        run: echo "version=$((1000 + GITHUB_RUN_NUMBER))" >> "$GITHUB_OUTPUT"
+
+      - name: Test
+        run: |
+          go vet ./...
+          go test ./...
+          GOOS=windows go vet ./...
+
+      # The manifest (common controls v6 for the countdown dialog, asInvoker) and version info.
+      - name: Windows resources
+        run: go run github.com/tc-hib/go-winres@v0.3.3 make --in winres/winres.json --out cmd/homeagent/rsrc
+
+      - name: Build
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath \
+            -ldflags "-s -w -H windowsgui -X main.version=$VERSION" -o HomeAgent.exe ./cmd/homeagent
+          size=$(stat -c %s HomeAgent.exe)
+          if [ "$size" -ge 10485760 ]; then echo "HomeAgent.exe is $size bytes (limit 10 MB)" >&2; exit 1; fi
+          sha=$(sha256sum HomeAgent.exe | cut -d' ' -f1)
+          printf '{"version":%s,"sha256":"%s"}\n' "$VERSION" "$sha" > agent.json
+          cat agent.json
+
+      - name: Upload build
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: home-agent
+          path: |
+            apps/agent/HomeAgent.exe
+            apps/agent/agent.json
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    needs: build
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the GitHub Release
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: home-agent
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          gh release create "agent-v$VERSION" HomeAgent.exe agent.json \
+            --title "HomeAgent $VERSION" \
+            --notes "Built from commit $GITHUB_SHA" \
+            --target "$GITHUB_SHA"

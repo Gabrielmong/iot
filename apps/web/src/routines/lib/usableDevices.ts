@@ -11,6 +11,11 @@ export const usableDevices = (devices: readonly Device[]): Device[] => visibleTi
 /** The action without settings the device doesn't support (mirrors the server's fitAction). */
 export function fitDraftAction(action: DraftAction, device: Device): DraftAction {
   if (lightCapabilities(device).brightness) return action
-  const on = device.kind === 'COMPUTER' ? true : action.on
-  return { ...action, on, brightness: null, color: null, colorTempK: null }
+  const none = { brightness: null, color: null, colorTempK: null }
+  if (device.kind !== 'COMPUTER') return { ...action, ...none }
+  if (action.pcPower && hasAgent(device)) return { ...action, ...none, on: null }
+  return { ...action, ...none, on: true, pcPower: null }
 }
+
+/** The PC runs HomeAgent, so a routine can put it to sleep or shut it down (even while it is offline). */
+export const hasAgent = (device: Device) => device.kind === 'COMPUTER' && Boolean(device.computer?.agent)

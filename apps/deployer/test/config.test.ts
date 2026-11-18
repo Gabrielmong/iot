@@ -70,6 +70,7 @@ describe('pathsFor', () => {
     expect(p.ciLogs).toMatch(/^C:.H.deployer.ci-logs$/);
     expect(p.envFile).toBe('C:\\H\\shared\\.env');
     expect(pathsFor('C:\\HomeControl').android).toBe('C:\\HomeControl\\shared\\android');
+    expect(pathsFor('C:\\HomeControl').agent).toBe('C:\\HomeControl\\shared\\agent');
     expect(p.history).toBe('C:\\H\\deployer\\history.json');
     expect(p.backups).toBe('C:\\H\\deployer\\backups');
   });

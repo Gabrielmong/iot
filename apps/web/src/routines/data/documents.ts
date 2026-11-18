@@ -23,7 +23,7 @@ export const ROUTINE_FIELDS = graphql(`
     audience
     room { id name }
     owner { id name role }
-    steps { kind waitMinutes routineId routineName actions { deviceId deviceExists on brightness color { r g b } colorTempK } }
+    steps { kind waitMinutes routineId routineName actions { deviceId deviceExists on brightness color { r g b } colorTempK pcPower } }
     schedules { time days enabled }
     lastRun { ...RoutineRunFields }
   }

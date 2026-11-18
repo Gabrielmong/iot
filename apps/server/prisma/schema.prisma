@@ -67,6 +67,7 @@ model User {
   cameraGroups   CameraGroup[]         @relation("CameraGroupOwner")
   createdCameraGroups CameraGroup[]    @relation("CameraGroupCreator")
   cameraGroupAccess CameraGroupAudience[]
+  agentEnrollments AgentEnrollment[]
 }
 
 model Session {
@@ -109,6 +110,10 @@ model Device {
   grants       DeviceGrant[]
   cameraGroups CameraGroupMember[]
   powerEvents  PowerEvent[]
+  /// SHA-256 (hex) of the paired HomeAgent's token; null when the PC has no agent.
+  agentTokenHash String?   @unique
+  /// The agent version its last hello reported.
+  agentVersion   Int?
 
   @@unique([brand, externalId])
 }
@@ -116,6 +121,7 @@ model Device {
 enum PowerSource {
   PROBE
   AGENT
+  WAKE
 }
 
 /** A computer turning on or off (only changes are stored; kept 30 days). */
@@ -135,8 +141,28 @@ model DeviceGrant {
   deviceId String
   user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   device   Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  /// PCs only: may watch live stats.
+  stats    Boolean @default(false)
+  /// PCs only: may sleep, shut down and restart.
+  power    Boolean @default(false)
 
   @@id([userId, deviceId])
+}
+
+/// A one-time "Adopt this PC" code (only its hash is kept); valid 30 minutes.
+model AgentEnrollment {
+  id          String    @id @default(cuid())
+  codeHash    String    @unique
+  createdById String
+  createdBy   User      @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  expiresAt   DateTime
+  usedAt      DateTime?
+}
+
+/// The token of an agent whose PC was removed: when it connects it is told to uninstall. Kept 90 days.
+model AgentRemoval {
+  tokenHash String   @id
+  createdAt DateTime @default(now())
 }
 
 model Setting {

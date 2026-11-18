@@ -58,6 +58,8 @@ export interface Paths {
   current: string;
   shared: string;
   android: string;
+  /** The published HomeAgent (`HomeAgent.exe`, `agent.json`) the server offers. */
+  agent: string;
   envFile: string;
   logs: string;
   toolsCache: string;
@@ -108,6 +110,7 @@ export function pathsFor(root: string): Paths {
     current: j(root, 'current'),
     shared,
     android: j(shared, 'android'),
+    agent: j(shared, 'agent'),
     envFile: j(shared, '.env'),
     logs: j(shared, 'logs'),
     toolsCache: j(shared, 'tools-cache'),

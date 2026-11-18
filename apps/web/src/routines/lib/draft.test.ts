@@ -1,8 +1,10 @@
-import { deviceFixture, lightFixture } from '../../test/deviceFixtures'
+import { computerFixture, deviceFixture, lightFixture } from '../../test/deviceFixtures'
 import { routineFixture } from '../../test/routineFixtures'
 import { draftToInput, emptyDraft, routineToDraft } from './draft'
 
 const lamp = lightFixture({}, { id: 'lamp' })
+const pc = (agent: boolean) =>
+  deviceFixture({ id: 'pc', kind: 'COMPUTER', brand: 'WOL', computer: computerFixture({ agent: agent ? { connected: false, version: 1001 } : null }) })
 
 describe('draft', () => {
   it('starts with one empty Set step and no schedules', () => {
@@ -32,6 +34,25 @@ describe('draft', () => {
     expect(routineToDraft(r, [plug]).draft.steps[0]).toMatchObject({ actions: [{ deviceId: 'lamp', on: true, brightness: null, colorTempK: null }] })
   })
 
+  it('keeps Sleep for a PC with an agent and sends it alone', () => {
+    const r = routineFixture({ deviceIds: ['pc'] })
+    r.steps[0]!.actions[0] = { ...r.steps[0]!.actions[0]!, on: null, pcPower: 'SLEEP' }
+    const { draft } = routineToDraft(r, [pc(true)])
+    expect(draft.steps[0]).toMatchObject({ actions: [{ deviceId: 'pc', on: null, pcPower: 'SLEEP', unavailable: false }] })
+    expect(draftToInput(draft).steps[0]).toEqual({
+      kind: 'SET',
+      actions: [{ deviceId: 'pc', on: null, brightness: null, color: null, colorTempK: null, pcPower: 'SLEEP' }],
+    })
+  })
+
+  it('flags Shut down unavailable once the PC has no agent, rather than turning it into Wake', () => {
+    const r = routineFixture({ deviceIds: ['pc'] })
+    r.steps[0]!.actions[0] = { ...r.steps[0]!.actions[0]!, on: null, pcPower: 'SHUTDOWN' }
+    expect(routineToDraft(r, [pc(false)]).draft.steps[0]).toMatchObject({
+      actions: [{ deviceId: 'pc', on: null, pcPower: 'SHUTDOWN', unavailable: true }],
+    })
+  })
+
   it('round-trips a routine through the draft', () => {
     const r = routineFixture({
       name: 'Movie night',
@@ -49,7 +70,7 @@ describe('draft', () => {
       roomId: 'r1',
       audience: ['ann'],
       steps: [
-        { kind: 'SET', actions: [{ deviceId: 'lamp', on: true, brightness: null, color: null, colorTempK: null }] },
+        { kind: 'SET', actions: [{ deviceId: 'lamp', on: true, brightness: null, color: null, colorTempK: null, pcPower: null }] },
         { kind: 'WAIT', waitMinutes: 45 },
       ],
       schedules: [{ time: '07:00', days: [1, 2], enabled: false }],

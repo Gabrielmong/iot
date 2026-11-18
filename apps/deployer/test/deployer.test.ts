@@ -39,6 +39,13 @@ class FakeGitHub {
     if (this.releaseError) throw this.releaseError;
     return undefined;
   }
+  agentReleaseError?: Error;
+  agentReleaseCalls = 0;
+  async latestAgentRelease(): Promise<{ version: number; exeAssetId: number; jsonAssetId: number } | undefined> {
+    this.agentReleaseCalls += 1;
+    if (this.agentReleaseError) throw this.agentReleaseError;
+    return undefined;
+  }
   async downloadAsset(): Promise<Buffer> {
     return Buffer.alloc(0);
   }
@@ -117,6 +124,14 @@ describe('Deployer.tick', () => {
     gh.releaseError = new Error('releases unreachable');
     await d.tick();
     expect(gh.releaseCalls).toBe(1);
+    expect(stub.ops.deployCommit).toHaveBeenCalledTimes(1);
+    expect((await d.status()).lastCheck).toEqual({ at: f.ctx.now().toISOString() });
+  });
+
+  it('a HomeAgent sync failure changes neither lastCheck nor the deploy pick', async () => {
+    gh.agentReleaseError = new Error('releases unreachable');
+    await d.tick();
+    expect(gh.agentReleaseCalls).toBe(1);
     expect(stub.ops.deployCommit).toHaveBeenCalledTimes(1);
     expect((await d.status()).lastCheck).toEqual({ at: f.ctx.now().toISOString() });
   });

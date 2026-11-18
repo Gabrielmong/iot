@@ -1,5 +1,6 @@
 import { forbidden, unauthenticated } from "../api-errors.js";
 import type { User } from "../generated/prisma/client.js";
+import { pcPermissions, type PcPermission } from "../services/computer-grants.js";
 import { canAccessDevice } from "../services/grants.js";
 import type { ApiContext } from "./context.js";
 
@@ -20,5 +21,14 @@ export function requireAdmin(ctx: ApiContext): User {
 export async function requireDeviceAccess(ctx: ApiContext, deviceId: string): Promise<User> {
   const user = requireUser(ctx);
   if (!(await canAccessDevice(ctx.prisma, user, deviceId))) throw forbidden("You do not have access to this device");
+  return user;
+}
+
+const PERMISSION_TEXT: Record<PcPermission, string> = { stats: "see this PC's live stats", power: "sleep, shut down or restart this PC" };
+
+/** Throws FORBIDDEN unless the user may see the PC and holds the permission (admins always do). */
+export async function requirePcPermission(ctx: ApiContext, deviceId: string, permission: PcPermission): Promise<User> {
+  const user = await requireDeviceAccess(ctx, deviceId);
+  if (!(await pcPermissions(ctx.prisma, user, deviceId))[permission]) throw forbidden(`You aren't allowed to ${PERMISSION_TEXT[permission]}`);
   return user;
 }

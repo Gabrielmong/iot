@@ -19,6 +19,9 @@ import { PendingPairings } from "../src/devices/pending-pairings.js";
 import type { KasaProbe, OnvifProbe, RtspDescribe, ServiceDeps, SwannProbe, TuyaCloudFactory, TuyaPortScan, TuyaPresence } from "../src/services/deps.js";
 import { unavailableDeployer } from "../src/deployer/client.js";
 import type { DeployerClient } from "../src/deployer/types.js";
+import { AgentHub } from "../src/agent/hub.js";
+import { PcPowerRelay } from "../src/agent/power.js";
+import { StatsBroker } from "../src/agent/stats-broker.js";
 import { resetDb } from "./helpers.js";
 
 export const KEY = Buffer.alloc(32, 9);
@@ -44,6 +47,7 @@ export interface HarnessOptions {
   deployer?: DeployerClient;
   webDist?: string;
   androidApkDir?: string;
+  agentDir?: string;
   /** Camera streaming fakes; by default every camera is unavailable. */
   cameras?: CameraServices;
   mseAuthTimeoutMs?: number;
@@ -55,6 +59,7 @@ export interface HarnessOptions {
 export class ApiHarness {
   readonly drivers = { TUYA: new FakeDriver("TUYA"), KASA: new FakeDriver("KASA"), WOL: new FakeDriver("WOL"), ANDROID_TV: new FakeTvDriver("ANDROID_TV") };
   readonly pubsub = createPubSub();
+  readonly agents = new AgentHub();
   readonly grantEvents = createGrantEvents();
   readonly sessionEvents = createSessionEvents();
   readonly cameraEvents = createCameraEvents();
@@ -64,6 +69,7 @@ export class ApiHarness {
   /** The harness log (tests may replace its methods); `opts.log` overrides it. */
   readonly log: Pick<Console, "info" | "warn" | "error"> = { ...silentLog };
   routines!: RoutineService;
+  pcPower!: PcPowerRelay;
   /** Routine waits in progress; tests release them by hand. */
   private readonly waits: (() => void)[] = [];
   manager!: DeviceManager;
@@ -77,9 +83,11 @@ export class ApiHarness {
     const log = opts.log ?? h.log;
     h.manager = new DeviceManager(h.db, Object.values(h.drivers), h.pubsub, KEY, { log, now: () => new Date(h.time) });
     await h.manager.start();
+    h.pcPower = new PcPowerRelay(h.agents, h.pubsub, () => new Date(h.time));
     h.routines = new RoutineService(h.db, h.manager, h.pubsub, {
       now: () => new Date(h.time),
       log,
+      pcPower: h.pcPower,
       delay: (_ms, signal) =>
         new Promise((resolve, reject) => {
           const release = () => resolve();
@@ -109,10 +117,13 @@ export class ApiHarness {
       tuyaPortScan: opts.tuyaPortScan ?? (async () => []),
       tvPairings: new PendingPairings(() => new Date(h.time)),
       routines: h.routines,
+      agents: h.agents,
+      pcPower: h.pcPower,
+      pcStats: new StatsBroker(h.agents, h.pubsub),
       deployer: opts.deployer ?? unavailableDeployer,
       log,
     };
-    h.server = await startServer(deps, { port: 0, host: "127.0.0.1", log, sessionCheckMs: opts.sessionCheckMs, webDist: opts.webDist, androidApkDir: opts.androidApkDir, mseAuthTimeoutMs: opts.mseAuthTimeoutMs, viewerSweepMs: opts.viewerSweepMs });
+    h.server = await startServer(deps, { port: 0, host: "127.0.0.1", log, sessionCheckMs: opts.sessionCheckMs, webDist: opts.webDist, androidApkDir: opts.androidApkDir, agentDir: opts.agentDir, mseAuthTimeoutMs: opts.mseAuthTimeoutMs, viewerSweepMs: opts.viewerSweepMs });
     return h;
   }
 

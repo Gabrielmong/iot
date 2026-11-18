@@ -9,10 +9,11 @@ import { stateLine } from '../../dashboard/lib/stateLine'
 import { SectionCard } from '../common/SectionCard'
 import { usePatchDevice } from '../data/usePatchDevice'
 import type { DeviceDetail } from '../types'
+import { PowerActions } from './power/PowerActions'
 import { RemoteDesktopButton } from './RemoteDesktopButton'
 import { WakeSetupChecklist } from './WakeSetupChecklist'
 
-/** A computer: its status (with the server's wake progress), Wake and Remote Desktop buttons, and the setup checklist for admins. */
+/** A computer: its status (with the server's wake progress), Wake, Remote Desktop, power actions (with an agent) and the setup checklist for admins. */
 export function ComputerCard({ device, isAdmin }: { device: DeviceDetail; isAdmin: boolean }) {
   const { onPatch, error, clearError } = usePatchDevice(device)
   const [checklistOpen, setChecklistOpen] = useState(false)
@@ -37,6 +38,7 @@ export function ComputerCard({ device, isAdmin }: { device: DeviceDetail; isAdmi
           Wake
         </Button>
         <RemoteDesktopButton device={device} onWake={wake} />
+        <PowerActions device={device} />
         {isAdmin && (
           <Stack ref={checklist} spacing={1}>
             <WakeSetupChecklist open={checklistOpen} onToggle={() => setChecklistOpen((o) => !o)} />

@@ -8,6 +8,7 @@ import { DeviceInfoCard } from './info/DeviceInfoCard'
 import { DeviceAdminSection } from './admin/DeviceAdminSection'
 import { ComputerCard } from './computer/ComputerCard'
 import { PowerHistoryCard } from './computer/history/PowerHistoryCard'
+import { LazyPcStatsCard } from './computer/stats/LazyPcStatsCard'
 import { TvRemoteCard } from './tv/TvRemoteCard'
 import { CameraPreview } from './preview/CameraPreview'
 import { PreviewCard } from './preview/PreviewCard'
@@ -17,7 +18,8 @@ const twoColumns = { display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr
 
 /**
  * Header, then preview | controls (switchable kinds), the live view (cameras), the remote (TVs) or the
- * Wake | history cards (computers), then info | admin.
+ * Wake | history cards (computers, then live stats when the viewer may see them and the agent is connected),
+ * then info | admin.
  * The admin card renders only for admins. Sections rise in one after another.
  */
 export function DeviceLayout({ device }: { device: DeviceDetail }) {
@@ -43,6 +45,11 @@ export function DeviceLayout({ device }: { device: DeviceDetail }) {
                 </RevealItem>
               )}
             </Box>
+          )}
+          {isComputer(device) && device.computer?.canStats && device.computer.agent?.connected && (
+            <RevealItem>
+              <LazyPcStatsCard deviceId={device.id} />
+            </RevealItem>
           )}
           {isSwitchable(device) && (
             <Box sx={twoColumns}>

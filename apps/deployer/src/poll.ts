@@ -6,7 +6,7 @@ import { makeRedactor } from './redact.js';
 
 export type CommitSource = Pick<
   GitHub,
-  'head' | 'commitsSince' | 'checkState' | 'treeSha' | 'latestAndroidRelease' | 'downloadAsset'
+  'head' | 'commitsSince' | 'checkState' | 'treeSha' | 'latestAndroidRelease' | 'latestAgentRelease' | 'downloadAsset'
 >;
 
 const MAX_SKIPPED = 200;
