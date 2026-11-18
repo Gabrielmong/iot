@@ -8,11 +8,21 @@ The same steps appear in the app: Admin › Devices › Add PC › "How to set u
 
 ## Setup checklist (each PC)
 
-1. **BIOS/UEFI:** turn on Wake-on-LAN. It may be called "Wake on LAN", "Power On by PCI-E" or "Resume by LAN". On some boards you also have to turn off "ErP"/"Deep Sleep".
-2. **Network adapter (Windows):**
+1. **Network adapter (Windows):**
    1. Open Device Manager › Network adapters › your Ethernet adapter › Properties.
-   2. On the **Advanced** tab, set **Wake on Magic Packet** to *Enabled*.
-   3. On the **Power Management** tab, tick **Allow this device to wake the computer**. Tick **Only allow a magic packet to wake the computer** too.
+   2. On the **Power Management** tab, tick **Allow this device to wake the computer**. Tick **Only allow a magic packet to wake the computer** too.
+   3. On the **Advanced** tab, check that **Enable PME** is *Enabled*, and set **Wake on Magic Packet** to *Enabled*. (Not every adapter lists both; set whichever ones are there.)
+2. **BIOS/UEFI:** restart into the BIOS and turn on the motherboard's wake-from-network setting. The name depends on the maker:
+
+   | Motherboard | Setting to turn on |
+   | --- | --- |
+   | ASUS | Advanced › APM › **Power On By PCI-E** |
+   | MSI | Settings › Advanced › Wake Up Event Setup › **Resume By PCI-E Device** |
+   | Gigabyte | Settings › Platform Power › **Wake on LAN** |
+   | ASRock | Advanced › ACPI Configuration › **PCIE Devices Power On** |
+   | Dell / HP / Lenovo | Power Management › **Wake on LAN** |
+
+   On many boards you also have to turn **off** "ErP Ready" / "Deep Sleep" / "EuP", or the network adapter loses power when the PC is off.
 3. **Turn off Windows Fast Startup:**
    1. Open Control Panel › Power Options › Choose what the power buttons do.
    2. Click Change settings that are currently unavailable, then untick Turn on fast startup.
