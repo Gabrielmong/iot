@@ -9,6 +9,22 @@ export type DeviceOpts = Partial<Pick<Device, 'id' | 'name' | 'brand' | 'kind' |
   computer?: Device['computer']
 }
 
+type Computer = NonNullable<Device['computer']>
+
+/** A PC's ComputerInfo: no agent and no stats/power rights unless given. */
+export function computerFixture(o: Partial<Omit<Computer, '__typename'>> = {}): Computer {
+  return {
+    __typename: 'ComputerInfo',
+    confirmable: true,
+    rdpAddress: null,
+    wake: null,
+    canStats: false,
+    canPower: false,
+    ...o,
+    agent: o.agent ? { __typename: 'AgentInfo', ...o.agent } : null,
+  } as Computer
+}
+
 /** A device as the server returns it (with `__typename`s so the Apollo cache normalizes it). */
 export function deviceFixture(o: DeviceOpts = {}, light: Light | null = null): Device {
   const room = o.room === undefined ? { id: 'r1', name: 'Living room' } : o.room
@@ -24,7 +40,7 @@ export function deviceFixture(o: DeviceOpts = {}, light: Light | null = null): D
     status: o.status ?? 'OK',
     connection: 'LOCAL',
     tv: null,
-    computer: o.computer !== undefined ? o.computer : (o.kind === 'COMPUTER' ? { __typename: 'ComputerInfo', confirmable: true, rdpAddress: null, wake: null } : null),
+    computer: o.computer !== undefined ? o.computer : (o.kind === 'COMPUTER' ? computerFixture() : null),
     state: {
       __typename: 'DeviceState',
       online: o.online ?? true,

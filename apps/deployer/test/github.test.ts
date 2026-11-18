@@ -174,6 +174,29 @@ describe('GitHub.latestAndroidRelease', () => {
   });
 });
 
+describe('GitHub.latestAgentRelease', () => {
+  const rel = (tag: string, ...assets: Array<[string, number]>) => ({
+    tag_name: tag,
+    assets: assets.map(([name, id]) => ({ name, id })),
+  });
+  const latest = async (releases: unknown[]) =>
+    new GitHub('o/r', 't', fake(() => ({ body: releases })).impl).latestAgentRelease();
+
+  it('picks the highest agent-v<n> release that has both assets', async () => {
+    const out = await latest([
+      rel('android-v2000', ['HomeAgent.exe', 1], ['agent.json', 2]),
+      rel('agent-v1001', ['HomeAgent.exe', 3], ['agent.json', 4]),
+      rel('agent-v1003', ['HomeAgent.exe', 5], ['agent.json', 6]),
+      rel('agent-v1009', ['HomeAgent.exe', 7]),
+    ]);
+    expect(out).toEqual({ version: 1003, exeAssetId: 5, jsonAssetId: 6 });
+  });
+
+  it('is undefined when nothing matches', async () => {
+    expect(await latest([rel('agent-vx', ['HomeAgent.exe', 1], ['agent.json', 2])])).toBeUndefined();
+  });
+});
+
 describe('GitHub.downloadAsset', () => {
   it('asks for the octet-stream and fetches the redirect without the token', async () => {
     const calls: Call[] = [];

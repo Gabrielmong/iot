@@ -57,8 +57,9 @@ export async function updateComputer(deps: Deps, id: string, input: { mac: strin
   const mac = macFrom(input.mac);
   const ip = ipFrom(input.ip);
   await assertMacFree(deps.prisma, mac, id);
-  // Keep what the probe learned (probeSeen, rdpSeen) unless the PC moved to another IP.
-  const learned = device.ip === ip ? ((device.config as Record<string, unknown> | null) ?? {}) : {};
+  // Keep what the probe learned (probeSeen, rdpSeen) unless the PC moved to another IP; the agent's MACs always stay.
+  const old = (device.config as Record<string, unknown> | null) ?? {};
+  const learned = device.ip === ip ? old : old.macs ? { macs: old.macs } : {};
   await deps.prisma.device.update({ where: { id }, data: { externalId: mac, ip, config: { ...learned, mac } } });
   return finish(deps, id);
 }

@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
-import { deviceFixture } from '../../test/deviceFixtures'
+import { computerFixture, deviceFixture } from '../../test/deviceFixtures'
 import type { WakeStatus } from '../../gql/graphql'
 import type { DeviceDetail } from '../types'
 import { RemoteDesktopButton } from './RemoteDesktopButton'
@@ -9,7 +9,7 @@ vi.mock('./openUrl', () => ({ openUrl: vi.fn() }))
 
 const pc = (on: boolean, rdpAddress: string | null, status: WakeStatus | null = null) =>
   ({
-    ...deviceFixture({ id: 'pc1', name: 'Office PC', kind: 'COMPUTER', brand: 'WOL', on, computer: { confirmable: true, rdpAddress, wake: status && { status, seconds: status === 'WOKE' ? 20 : null } } }),
+    ...deviceFixture({ id: 'pc1', name: 'Office PC', kind: 'COMPUTER', brand: 'WOL', on, computer: computerFixture({ rdpAddress, wake: status && { status, seconds: status === 'WOKE' ? 20 : null } }) }),
     lastSeenAt: null,
     streamSource: null,
     ip: null,

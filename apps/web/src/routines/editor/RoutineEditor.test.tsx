@@ -71,7 +71,7 @@ describe('RoutineEditor', () => {
           scope: 'PERSONAL',
           roomId: null,
           audience: null,
-          steps: [{ kind: 'SET', actions: [{ deviceId: 'tv', on: true, brightness: null, color: null, colorTempK: null }] }],
+          steps: [{ kind: 'SET', actions: [{ deviceId: 'tv', on: true, brightness: null, color: null, colorTempK: null, pcPower: null }] }],
           schedules: [{ time: '07:00', days: [1, 2, 3, 4, 5], enabled: true }],
         },
       },

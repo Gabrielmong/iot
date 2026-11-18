@@ -12,6 +12,11 @@ describe('describeAction', () => {
     expect(describeAction(action({ colorTempK: 6000 }))).toBe('cool white')
   })
 
+  it('names a PC power action', () => {
+    expect(describeAction(action({ pcPower: 'SLEEP' }))).toBe('Sleep')
+    expect(describeAction(action({ pcPower: 'SHUTDOWN' }))).toBe('Shut down')
+  })
+
   it('says when nothing changes', () => {
     expect(describeAction(action({}))).toBe('No change')
   })

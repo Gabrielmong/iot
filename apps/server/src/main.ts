@@ -25,6 +25,9 @@ import { syncTuyaKeys } from "./services/tuya-sync.js";
 import { TuyaSyncSchedule } from "./services/tuya-sync-schedule.js";
 import { createPubSub } from "./graphql/pubsub.js";
 import { startServer } from "./server.js";
+import { AgentHub } from "./agent/hub.js";
+import { PcPowerRelay } from "./agent/power.js";
+import { StatsBroker } from "./agent/stats-broker.js";
 import type { ServiceDeps } from "./services/deps.js";
 import { PendingPairings } from "./devices/pending-pairings.js";
 import { probeKasa } from "./services/kasa-probe.js";
@@ -42,6 +45,7 @@ async function main(): Promise<void> {
   await ensureBootstrapAdmin(prisma, config.bootstrapAdminPin, log);
 
   const pubsub = createPubSub();
+  const agents = new AgentHub();
   const drivers = createDrivers(prisma, config.secretKey, config.lanAddress);
   const manager = new DeviceManager(prisma, drivers, pubsub, config.secretKey, { log });
   await manager.start();
@@ -69,7 +73,8 @@ async function main(): Promise<void> {
   reregisterOnReady(go2rtc, go2rtcApi, streams, log);
   await go2rtc.start();
 
-  const routines = new RoutineService(prisma, manager, pubsub, { now: () => new Date(), log });
+  const pcPower = new PcPowerRelay(agents, pubsub, () => new Date());
+  const routines = new RoutineService(prisma, manager, pubsub, { now: () => new Date(), log, pcPower });
   await routines.markInterrupted();
 
   const deps: ServiceDeps = {
@@ -91,11 +96,14 @@ async function main(): Promise<void> {
     tuyaPortScan: () => scanTuyaHosts(config.lanAddress),
     tvPairings: new PendingPairings(() => new Date()),
     routines,
+    agents,
+    pcPower,
+    pcStats: new StatsBroker(agents, pubsub),
     deployer: httpDeployerClient(config.deployerUrl, config.deployerTokenFile),
     log,
   };
   const production = process.env.NODE_ENV === "production";
-  const server = await startServer(deps, { port: config.port, log, webDist: production ? WEB_DIST : undefined, androidApkDir: config.androidApkDir });
+  const server = await startServer(deps, { port: config.port, log, webDist: production ? WEB_DIST : undefined, androidApkDir: config.androidApkDir, agentDir: config.agentDir });
   log.info(`Home server listening on port ${server.port}${production ? " (serving the web app)" : ""}`);
   const announcement = startAnnouncement({ port: server.port, name: await announcedName(prisma, log), host: config.lanAddress, log });
   const scheduler = new RoutineScheduler({ prisma, run: (id) => routines.runScheduled(id), now: () => new Date(), log });

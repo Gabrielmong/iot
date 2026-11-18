@@ -1,3 +1,4 @@
+import { recordRemoval } from "../agent/removals.js";
 import { badInput, notFound } from "../api-errors.js";
 import type { DeviceKind, Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { publishDevicesChanged } from "../graphql/pubsub.js";
@@ -7,7 +8,7 @@ import { parseStatePatch, type StatePatchInput } from "./state-patch.js";
 import { parseName } from "./user-input.js";
 
 type Deps = Pick<ServiceDeps, "prisma" | "pubsub" | "manager">;
-type RemovalDeps = Deps & Pick<ServiceDeps, "grantEvents">;
+type RemovalDeps = Deps & Pick<ServiceDeps, "grantEvents" | "agents" | "now">;
 /** `roomId: null` unassigns the room; an omitted field is left as it is. */
 export type DeviceSettings = { name?: string | null; roomId?: string | null; kind?: DeviceKind | null };
 
@@ -25,8 +26,12 @@ export async function updateDevice(deps: Deps, id: string, settings: DeviceSetti
  * manager re-syncs its drivers), then announces it.
  */
 export async function removeDevice(deps: RemovalDeps, id: string): Promise<void> {
-  if (!(await deps.prisma.device.findUnique({ where: { id } }))) throw notFound("Device");
+  const device = await deps.prisma.device.findUnique({ where: { id } });
+  if (!device) throw notFound("Device");
+  // A PC's agent uninstalls itself: now if it is connected, else when it next connects (within 90 days).
+  if (device.agentTokenHash) await recordRemoval(deps.prisma, device.agentTokenHash, deps.now());
   await deps.manager.removeDevice(id);
+  deps.agents.send(id, { t: "uninstall" });
   deps.grantEvents.emit("deviceRemoved", id);
 }
 

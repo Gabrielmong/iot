@@ -15,7 +15,17 @@ enum TvApp { YOUTUBE NETFLIX PRIME_VIDEO DISNEY_PLUS SPOTIFY }
 enum PairingMode { CODE ACCEPT_ON_TV }  # CODE: type the code the TV shows; ACCEPT_ON_TV: accept the prompt on the TV
 enum WakeStatus { WAKING WOKE FAILED UNCONFIRMED }
 type WakeProgress { status: WakeStatus!  seconds: Int } # seconds: WOKE only
-type ComputerInfo { confirmable: Boolean!  rdpAddress: String  wake: WakeProgress } # confirmable: the probe has seen the PC answer; rdpAddress: set once Remote Desktop answered; wake: the latest wake, null when none is shown
+type ComputerInfo { confirmable: Boolean!  rdpAddress: String  wake: WakeProgress  agent: AgentInfo  canStats: Boolean!  canPower: Boolean! } # canStats / canPower: what the viewer may do
+enum PcPowerAction { SLEEP SHUTDOWN RESTART }
+enum PcPowerPhase { SENT COUNTDOWN CANCELLED EXECUTING SKIPPED } # SENT: delivered to the agent; COUNTDOWN: the prompt at the PC is counting; SKIPPED: another action was running
+type PcPowerState { id: ID!  deviceId: ID!  action: PcPowerAction!  phase: PcPowerPhase!  secondsLeft: Int  requestedBy: String! }
+"""A PC's live numbers: bytes, bytes per second, percent, seconds. Never stored."""
+type PcStats { cpu: Float!  ramUsed: Float!  ramTotal: Float!  gpu: GpuStats  disks: [DiskStats!]!  netUp: Float!  netDown: Float!  uptimeS: Int!  user: String  idleS: Int }
+type GpuStats { name: String!  load: Float!  tempC: Float! }
+type DiskStats { mount: String!  free: Float!  total: Float! }
+type ComputerGrant { userId: ID!  stats: Boolean!  power: Boolean! }
+input ComputerGrantInput { userId: ID!  stats: Boolean!  power: Boolean! } # confirmable: the probe has seen the PC answer; rdpAddress: set once Remote Desktop answered; wake: the latest wake, null when none is shown
+type AgentInfo { connected: Boolean!  version: Int } # the PC's HomeAgent; ComputerInfo.agent is null when none is paired
 type PowerEvent { on: Boolean!  at: String! }
 type TvInfo { apps: [TvApp!]!  canPowerOn: Boolean! }  # canPowerOn: false when the TV can't be woken from off
 type AdminDevice { id: ID!  name: String!  brand: Brand!  kind: DeviceKind!  model: String  ip: String  adopted: Boolean!  room: Room  parentId: ID  status: DeviceStatus!  hasKey: Boolean!  lastSeenAt: String  online: Boolean!  testable: Boolean!  testBlockedReason: String  mac: String } # mac: computers only; testable: an un-adopted device the admin can switch on/off to identify it; otherwise testBlockedReason says why
@@ -34,7 +44,7 @@ enum RoutineScope { PERSONAL SHARED }
 enum StepKind { SET WAIT ROUTINE }
 enum RunStatus { RUNNING OK PARTIAL FAILED INTERRUPTED STOPPED }
 enum ProblemReason { UNREACHABLE NOT_READY NO_ACCESS REMOVED ROUTINE_REMOVED NESTED_TOO_DEEP }
-type DeviceAction { deviceId: ID!  deviceExists: Boolean!  on: Boolean  brightness: Int  color: Rgb  colorTempK: Int } # on: null = leave power as it is; deviceExists: false once the device was removed
+type DeviceAction { deviceId: ID!  deviceExists: Boolean!  on: Boolean  brightness: Int  color: Rgb  colorTempK: Int  pcPower: PcPowerAction } # on: null = leave power as it is; deviceExists: false once the device was removed; pcPower: SLEEP/SHUTDOWN of a PC with an agent, alone
 type RoutineStep { kind: StepKind!  waitMinutes: Int  actions: [DeviceAction!]!  routineId: ID  routineName: String } # routineId/routineName: ROUTINE steps; routineName null once that routine was removed
 type RoutineSchedule { time: String!  days: [Int!]!  enabled: Boolean! } # time "HH:MM" server local time; days 1 = Monday … 7 = Sunday
 type RunProblem { step: Int!  deviceId: ID  deviceName: String  reason: ProblemReason!  routineName: String } # step: index of the top-level step; deviceId/deviceName null when the problem is about a called routine itself; routineName: the innermost called routine the problem came from, null in the top-level routine
@@ -45,7 +55,7 @@ type RoutineRunEvent { routineId: ID!  run: RoutineRun! } # routineId "try" for 
 type RoutineOption { id: ID!  name: String! } # a routine that can be run from another
 type CameraGroup { id: ID!  name: String!  scope: RoutineScope!  owner: User  layout: Int!  cameraIds: [ID!]!  audience: [ID!]!  editable: Boolean! } # cameraIds: in order, only cameras the viewer can see; audience: [] unless admin
 input CameraGroupInput { name: String!  scope: RoutineScope!  layout: Int!  cameraIds: [ID!]!  audience: [ID!] } # layout: 1, 2, 4, 6, 8 or 16; 1-16 cameras
-input DeviceActionInput { deviceId: ID!  on: Boolean  brightness: Int  color: RgbInput  colorTempK: Int }
+input DeviceActionInput { deviceId: ID!  on: Boolean  brightness: Int  color: RgbInput  colorTempK: Int  pcPower: PcPowerAction } # pcPower: SLEEP or SHUTDOWN only (no RESTART), nothing else alongside
 input RoutineStepInput { kind: StepKind!  waitMinutes: Int  actions: [DeviceActionInput!]  routineId: ID }
 input RoutineScheduleInput { time: String!  days: [Int!]!  enabled: Boolean }
 input RoutineInput { name: String!  scope: RoutineScope!  roomId: ID  steps: [RoutineStepInput!]!  schedules: [RoutineScheduleInput!]!  audience: [ID!] } # audience: SHARED only
@@ -66,6 +76,12 @@ type CiRun { id: ID!  attempt: Int!  workflow: String!  gatesDeploy: Boolean!  s
 type DeployCommit { sha: String!  message: String!  committedAt: String!  runs: [CiRun!]! } # a commit on the deploy branch with its GitHub Actions runs
 type DeployRunning { sha: String!  message: String!  deployedAt: String! }
 type DeployStatus { available: Boolean!  running: DeployRunning  autoDeploy: Boolean!  pausedReason: String  lastCheckAt: String  lastCheckError: String  busy: String  helperUpdateAvailable: Boolean!  events: [DeployEvent!]!  commits: [DeployCommit!]!  ciError: String  ciCheckedAt: String } # available false: every other field empty/default
+"""A one-time "Adopt this PC" link: download and run the agent on the PC within 30 minutes."""
+type AgentEnrollment {
+  downloadUrl: String!
+  expiresAt: String!
+}
+
 type Query {
   loginUsers: [User!]!            # public
   homeName: String!               # public; the household's display name ("Home" until set)
@@ -77,6 +93,7 @@ type Query {
   users: [User!]!                 # admin
   grants(userId: ID!): [ID!]!     # admin
   deviceGrants(deviceId: ID!): [ID!]! # admin; user ids with explicit grants
+  computerGrants(deviceId: ID!): [ComputerGrant!]! # admin; every user granted the PC, with their Live stats / Power flags
   integrations: IntegrationStatus! # admin
   dashboardLayouts: [DashboardLayout!]! # effective per tab for the caller (own, else default); tabs with none are omitted
   routines: [Routine!]!           # the caller's dashboard set: own personal + shared they can see (admins: own + every shared)
@@ -107,7 +124,10 @@ type Mutation {
   updateProfile(name: String, avatarColor: String, avatarImage: String): User! # the caller's own; null keeps a field, avatarImage "" clears it
   changeMyPin(currentPin: String!, newPin: String!): Boolean!  # signed-in user with a PIN; ends their other sessions
   setGrants(userId: ID!, deviceIds: [ID!]!): [ID!]!
-  setDeviceGrants(deviceId: ID!, userIds: [ID!]!): [ID!]! # admin; replaces grants for the device (ADMIN ids ignored)
+  setDeviceGrants(deviceId: ID!, userIds: [ID!]!): [ID!]! # admin; replaces grants for the device (ADMIN ids ignored); users who stay keep their PC flags
+  pcPower(deviceId: ID!, action: PcPowerAction!): PcPowerState! # Power permission; DEVICE_UNREACHABLE when the agent is offline
+  pcPowerCancel(deviceId: ID!, id: ID!): Boolean! # Power permission; false when the agent is offline
+  setComputerGrants(deviceId: ID!, grants: [ComputerGrantInput!]!): [ComputerGrant!]! # admin; only for users already granted the PC
   createRoom(name: String!): Room!
   updateRoom(id: ID!, name: String, sortOrder: Int): Room!
   deleteRoom(id: ID!): Boolean!
@@ -121,6 +141,7 @@ type Mutation {
   addKasaByIp(ip: String!): AdminDevice!
   addComputer(name: String!, roomId: ID, mac: String!, ip: String): AdminDevice! # admin; mac in any common notation, stored aa:bb:cc:dd:ee:ff; ip enables the awake check
   updateComputer(id: ID!, mac: String!, ip: String): AdminDevice! # admin; an omitted ip clears it
+  createAgentEnrollment: AgentEnrollment! # admin; a one-time HomeAgent download, valid 30 minutes
   sendTvKey(deviceId: ID!, key: TvKey!): Boolean!  # users with access to the TV
   launchTvApp(deviceId: ID!, app: TvApp!): Boolean!
   addTvByIp(ip: String!): AdminDevice!  # admin; asks the Android TV, Samsung and Hisense drivers in turn, records the first match like a discovery
@@ -157,4 +178,6 @@ type Subscription {
   routineRunChanged: RoutineRunEvent! # routines the subscriber can see, plus their own Try it run
   cameraGroupsChanged: Boolean! # a camera group was created, updated or deleted; client refetches
   routinesChanged: Boolean! # a routine was created, updated or deleted; client refetches `routines`
+  pcPowerState(deviceId: ID!): PcPowerState! # progress of power actions on a PC the subscriber may see
+  pcStats(deviceId: ID!): PcStats! # Live stats permission; a sample every 2 s while subscribed; ends when the permission is lost
 }

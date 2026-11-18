@@ -1,5 +1,9 @@
+import { agentResolvers } from "./agents.js";
 import { authResolvers } from "./auth.js";
 import { computerResolvers } from "./computers.js";
+import { computerGrantResolvers } from "./computer-grants.js";
+import { pcPowerResolvers } from "./pc-power.js";
+import { pcStatsResolvers } from "./pc-stats.js";
 import { tvResolvers } from "./tv.js";
 import { cameraControlResolvers } from "./camera-controls.js";
 import { cameraGroupResolvers } from "./camera-groups.js";
@@ -19,6 +23,7 @@ export const resolvers = {
     ...authResolvers.Query,
     ...homeResolvers.Query,
     ...deviceResolvers.Query,
+    ...computerGrantResolvers.Query,
     ...roomResolvers.Query,
     ...userResolvers.Query,
     ...integrationResolvers.Query,
@@ -33,6 +38,9 @@ export const resolvers = {
     ...homeResolvers.Mutation,
     ...deviceResolvers.Mutation,
     ...computerResolvers.Mutation,
+    ...agentResolvers.Mutation,
+    ...computerGrantResolvers.Mutation,
+    ...pcPowerResolvers.Mutation,
     ...tvResolvers.Mutation,
     ...roomResolvers.Mutation,
     ...userResolvers.Mutation,
@@ -45,5 +53,6 @@ export const resolvers = {
     ...deployResolvers.Mutation,
   },
   Device: computerResolvers.Device,
-  ...subscriptionResolvers,
+  ComputerInfo: computerGrantResolvers.ComputerInfo,
+  Subscription: { ...subscriptionResolvers.Subscription, ...pcPowerResolvers.Subscription, ...pcStatsResolvers.Subscription },
 };

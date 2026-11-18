@@ -3,7 +3,7 @@ import type { Brand, DeviceKind } from "../generated/prisma/client.js";
 import { fitAction } from "./action-rules.js";
 import { enterRoutine, positionAt, routineNameOf, routineProblem } from "./called-routine.js";
 import { outcome, reasonFor, type PathEntry, type Problem, type RunSnapshot } from "./run-outcome.js";
-import { LIMITS, type DeviceAction, type RoutineStep } from "./steps.js";
+import { LIMITS, type DeviceAction, type RoutinePcPower, type RoutineStep } from "./steps.js";
 
 export type { PathEntry, Problem, RunSnapshot } from "./run-outcome.js";
 
@@ -14,6 +14,10 @@ export type RunnerDeps = {
   setState(deviceId: string, patch: StatePatch): Promise<void>;
   device(id: string): Promise<{ id: string; name: string; kind: DeviceKind; brand: Brand } | null>;
   canAccess(userId: string, deviceId: string): Promise<boolean>;
+  /** Whether the user may sleep / shut down that PC. */
+  canPower(userId: string, deviceId: string): Promise<boolean>;
+  /** Asks the PC's agent to sleep / shut down; throws DEVICE_UNREACHABLE when it isn't connected. */
+  pcPower(deviceId: string, action: RoutinePcPower, requestedBy: string): void;
   /** A routine a step runs, as `runAs` may use it; null when it was removed. A rejection is recorded as UNREACHABLE. */
   routine(id: string, runAs: RunAs): Promise<{ name: string; steps: RoutineStep[] } | "NO_ACCESS" | null>;
   /** Rejects when `signal` aborts. */
@@ -24,7 +28,8 @@ export type RunnerDeps = {
 };
 
 /** actionCount: device actions plus "run routine" steps that failed, for the run's outcome. */
-type LiveRun = { abort: AbortController; snapshot: RunSnapshot; actionCount: number };
+/** name: the routine's name, shown on PCs it sleeps or shuts down. */
+type LiveRun = { abort: AbortController; snapshot: RunSnapshot; actionCount: number; name: string };
 type StepsResult = "done" | "aborted";
 
 const REMOVED_NAME = "Removed device";
@@ -37,10 +42,10 @@ export class RoutineRunner {
   constructor(private readonly deps: RunnerDeps) {}
 
   /** Starts a run, replacing (silently) any live run with the same key. `startedBy`: a user's name, null for the schedule. */
-  start(key: string, steps: RoutineStep[], runAs: RunAs, startedBy: string | null = null): void {
+  start(key: string, steps: RoutineStep[], runAs: RunAs, startedBy: string | null = null, name = "Routine"): void {
     this.runs.get(key)?.abort.abort();
     const snapshot: RunSnapshot = { status: "RUNNING", startedAt: this.deps.now(), endedAt: null, problems: [], currentStep: null, currentPath: [], waitUntil: null, startedBy };
-    const run: LiveRun = { abort: new AbortController(), snapshot, actionCount: 0 };
+    const run: LiveRun = { abort: new AbortController(), snapshot, actionCount: 0, name };
     this.runs.set(key, run);
     void this.execute(key, run, steps, runAs);
   }
@@ -104,7 +109,7 @@ export class RoutineRunner {
       } else {
         run.actionCount += step.actions.length;
         const top = run.snapshot.currentStep ?? index;
-        const problems = await Promise.all(step.actions.map((a) => this.apply(a, runAs, top, routineNameOf(here))));
+        const problems = await Promise.all(step.actions.map((a) => this.apply(a, runAs, top, routineNameOf(here), run.name)));
         run.snapshot.problems.push(...problems.filter((p): p is Problem => p !== null));
       }
     }
@@ -127,7 +132,7 @@ export class RoutineRunner {
   }
 
   /** Sends one action; never throws. Returns the problem, if any. */
-  private async apply(action: DeviceAction, runAs: RunAs, step: number, routineName: string | null): Promise<Problem | null> {
+  private async apply(action: DeviceAction, runAs: RunAs, step: number, routineName: string | null, topName: string): Promise<Problem | null> {
     const problem = (deviceName: string, reason: Problem["reason"]): Problem => ({ step, deviceId: action.deviceId, deviceName, reason, routineName });
     try {
       const device = await this.deps.device(action.deviceId);
@@ -135,9 +140,11 @@ export class RoutineRunner {
       if (runAs && !(await this.deps.canAccess(runAs.userId, device.id))) return problem(device.name, "NO_ACCESS");
       const fitted = fitAction(action, device);
       if (!fitted) return problem(device.name, "NOT_READY");
-      const { deviceId: _, ...patch } = fitted;
+      if (fitted.pcPower && runAs && !(await this.deps.canPower(runAs.userId, device.id))) return problem(device.name, "NO_ACCESS");
+      const { deviceId: _, pcPower, ...patch } = fitted;
       try {
-        await this.deps.setState(device.id, patch);
+        if (pcPower) this.deps.pcPower(device.id, pcPower, `Routine ${routineName ?? topName}`);
+        else await this.deps.setState(device.id, patch);
         return null;
       } catch (error) {
         const reason = reasonFor(error);

@@ -23,6 +23,8 @@ export interface Config {
   deployerTokenFile?: string;
   /** Folder holding the published Android app (`home.apk`, `home.json`); unset: none is offered. */
   androidApkDir?: string;
+  /** Folder holding the published HomeAgent (`HomeAgent.exe`, `agent.json`); unset: none is offered. */
+  agentDir?: string;
 }
 
 const KEY_BYTES = 32;
@@ -78,5 +80,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     deployerUrl: env.DEPLOYER_URL || "http://127.0.0.1:4100",
     deployerTokenFile: env.DEPLOYER_TOKEN_FILE || undefined,
     androidApkDir: env.ANDROID_APK_DIR || undefined,
+    agentDir: env.AGENT_DIR || undefined,
   };
 }

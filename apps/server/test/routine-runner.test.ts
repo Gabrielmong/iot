@@ -28,6 +28,8 @@ function setup(devices: Device[], routines: Record<string, Called> = {}) {
       accessCalls.push(userId);
       return access.has(deviceId);
     },
+    canPower: async (_userId, deviceId) => access.has(deviceId),
+    pcPower: () => {},
     routine: async (id, runAs) => {
       routineCalls.push({ id, runAs });
       if (routines[id] === "THROW") throw new Error("db down");

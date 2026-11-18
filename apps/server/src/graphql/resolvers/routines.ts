@@ -71,7 +71,7 @@ export const routineResolvers = {
     tryRoutine: (_: unknown, { input }: { input: RoutineInput }, ctx: ApiContext) => {
       const user = requireUser(ctx);
       refuseGuest(user, "try routines");
-      ctx.deps.routines.tryDraft(user, parseSteps(input.steps), input.scope);
+      ctx.deps.routines.tryDraft(user, parseSteps(input.steps), input.scope, input.name);
       return true;
     },
     stopTry: (_: unknown, __: unknown, ctx: ApiContext) => ctx.deps.routines.stopTry(requireUser(ctx).id),

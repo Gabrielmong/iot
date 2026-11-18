@@ -53,6 +53,7 @@ export function routineFixture(o: Opts = {}): Routine {
           brightness: null,
           color: null,
           colorTempK: null,
+          pcPower: null,
         })),
       },
     ],

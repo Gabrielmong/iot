@@ -1,14 +1,14 @@
 import { ApolloProvider } from '@apollo/client/react'
 import { render, screen } from '@testing-library/react'
 import { of } from 'rxjs'
-import { deviceFixture } from '../../../test/deviceFixtures'
+import { computerFixture, deviceFixture } from '../../../test/deviceFixtures'
 import { createTestClient } from '../../../test/testClient'
 import type { DeviceDetail } from '../../types'
 import { PowerHistoryCard } from './PowerHistoryCard'
 
 const pc = (confirmable: boolean) =>
   ({
-    ...deviceFixture({ id: 'pc1', name: 'Office PC', kind: 'COMPUTER', brand: 'WOL', on: true, computer: { confirmable, rdpAddress: null, wake: null } }),
+    ...deviceFixture({ id: 'pc1', name: 'Office PC', kind: 'COMPUTER', brand: 'WOL', on: true, computer: computerFixture({ confirmable }) }),
     lastSeenAt: null,
     streamSource: null,
     ip: null,

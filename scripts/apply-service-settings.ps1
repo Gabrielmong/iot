@@ -22,6 +22,7 @@ Test-NodeIsSystemWide $Node -DryRun:$DryRun
 $current = Join-Path $Root 'current'
 $logs = Join-Path $Root 'shared\logs'
 $android = Join-Path $Root 'shared\android'
+$agent = Join-Path $Root 'shared\agent'
 $environment = @(
     'NODE_ENV=production'
     "DOTENV_CONFIG_PATH=$(Join-Path $Root 'shared\.env')"
@@ -29,6 +30,7 @@ $environment = @(
     "FFMPEG_PATH=$(Join-Path $current 'tools\ffmpeg\ffmpeg.exe')"
     "DEPLOYER_TOKEN_FILE=$(Join-Path $Root 'deployer\api-token')"
     "ANDROID_APK_DIR=$android"
+    "AGENT_DIR=$agent"
     "GO2RTC_PID_FILE=$(Join-Path $logs 'run\go2rtc.pid')"   # shared: a release is read-only, and orphans outlive it
 )
 
@@ -36,6 +38,8 @@ if ($DryRun) { Write-Host "[dry-run] Creating $logs" } else { New-Item -ItemType
 Grant-LogsAccess $logs -DryRun:$DryRun
 if ($DryRun) { Write-Host "[dry-run] Creating $android" } else { New-Item -ItemType Directory -Force $android | Out-Null }
 Grant-ReadAccess $android -DryRun:$DryRun
+if ($DryRun) { Write-Host "[dry-run] Creating $agent" } else { New-Item -ItemType Directory -Force $agent | Out-Null }
+Grant-ReadAccess $agent -DryRun:$DryRun
 Install-OrUpdateServiceCommand $Service $Node -DryRun:$DryRun
 Set-HomeControlServiceSettings (Get-HomeControlServiceSettings $current $logs $environment) $Service -DryRun:$DryRun
 Write-Host "Service settings applied to $Service"

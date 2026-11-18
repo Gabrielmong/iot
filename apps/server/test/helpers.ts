@@ -17,7 +17,7 @@ export async function resetDb(): Promise<PrismaClient> {
   const url = testUrl();
   client ??= createPrisma(url);
   await client.$executeRawUnsafe(
-    'TRUNCATE TABLE "DeviceGrant", "Session", "Device", "Room", "Setting", "User", "UserDashboardLayout", "DefaultDashboardLayout", "Routine", "RoutineSchedule", "RoutineAudience", "RoutineRun", "CameraGroup", "CameraGroupMember", "CameraGroupAudience", "PowerEvent" RESTART IDENTITY CASCADE',
+    'TRUNCATE TABLE "DeviceGrant", "Session", "Device", "Room", "Setting", "User", "UserDashboardLayout", "DefaultDashboardLayout", "Routine", "RoutineSchedule", "RoutineAudience", "RoutineRun", "CameraGroup", "CameraGroupMember", "CameraGroupAudience", "PowerEvent", "AgentEnrollment", "AgentRemoval" RESTART IDENTITY CASCADE',
   );
   return client;
 }

@@ -1,19 +1,22 @@
 import type { Device, Rgb } from '../../dashboard/types'
-import type { RoutineScope } from '../../gql/graphql'
+import type { PcPowerAction, RoutineScope } from '../../gql/graphql'
 import type { Routine, RoutineInput } from '../types'
-import { fitDraftAction } from './usableDevices'
+import { fitDraftAction, hasAgent } from './usableDevices'
 
 /**
  * One device in a Set step. `on: null` leaves power as it is; other nulls leave that setting alone.
  * `unavailable`: the device still exists but this routine can't use it now (no access, or no longer a
- * light/switch/plug); it must be removed before saving.
+ * light/switch/plug, or a PC that lost its agent); it must be removed before saving.
+ * `pcPower`: Sleep or Shut down a PC with an agent; it stands alone (`on` is null).
  */
+export type RoutinePcPower = Extract<PcPowerAction, 'SLEEP' | 'SHUTDOWN'>
 export type DraftAction = {
   deviceId: string
   on: boolean | null
   brightness: number | null
   color: Rgb | null
   colorTempK: number | null
+  pcPower?: RoutinePcPower | null
   unavailable: boolean
 }
 /** `routineName: null` means the called routine was removed. */
@@ -64,9 +67,10 @@ export function routineToDraft(r: Routine, usable: readonly Device[]): { draft: 
         brightness: a.brightness ?? null,
         color: a.color ? { r: a.color.r, g: a.color.g, b: a.color.b } : null,
         colorTempK: a.colorTempK ?? null,
-        unavailable: !device,
+        pcPower: a.pcPower === 'SLEEP' || a.pcPower === 'SHUTDOWN' ? a.pcPower : null,
+        unavailable: !device || (Boolean(a.pcPower) && !hasAgent(device)),
       }
-      actions.push(device ? fitDraftAction(action, device) : action)
+      actions.push(device && !action.unavailable ? fitDraftAction(action, device) : action)
     }
     return { key: newKey(), kind: 'SET', actions }
   })
@@ -86,7 +90,14 @@ export function draftToInput(d: Draft): RoutineInput {
     steps: d.steps.map((s) => {
       if (s.kind === 'WAIT') return { kind: 'WAIT', waitMinutes: s.minutes }
       if (s.kind === 'ROUTINE') return { kind: 'ROUTINE', routineId: s.routineId }
-      return { kind: 'SET', actions: s.actions.map(({ deviceId, on, brightness, color, colorTempK }) => ({ deviceId, on, brightness, color, colorTempK })) }
+      return { kind: 'SET', actions: s.actions.map(({ deviceId, on, brightness, color, colorTempK, pcPower }) => ({
+          deviceId,
+          on,
+          brightness,
+          color,
+          colorTempK,
+          pcPower: pcPower ?? null,
+        })) }
     }),
     schedules: d.schedules.map((s) => ({ time: s.time, days: s.days, enabled: s.enabled })),
   }

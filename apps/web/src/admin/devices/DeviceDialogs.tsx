@@ -3,7 +3,9 @@ import { AddKasaDialog } from './AddKasaDialog'
 import { AddTvDialog } from './AddTvDialog'
 import { AdoptDialog } from './AdoptDialog'
 import { AddComputerDialog } from './computers/AddComputerDialog'
+import { AdoptPcDialog } from './computers/AdoptPcDialog'
 import { EditComputerDialog } from './computers/EditComputerDialog'
+import { useHasAgent } from './computers/useHasAgent'
 import { ConfirmRemoveDialog } from './ConfirmRemoveDialog'
 import { PairTvDialog } from './pairing/PairTvDialog'
 import { RenameMoveDialog } from './RenameMoveDialog'
@@ -11,7 +13,7 @@ import { SetKeyDialog } from './SetKeyDialog'
 
 export type DeviceDialogState =
   | { type: 'adopt' | 'edit' | 'key' | 'pair' | 'computer' | 'remove'; device: AdminDevice }
-  | { type: 'kasa' | 'addTv' | 'addComputer' }
+  | { type: 'kasa' | 'addTv' | 'addComputer' | 'adoptPc' }
   | null
 
 type Props = { state: DeviceDialogState; devices: readonly AdminDevice[]; rooms: readonly Room[]; onClose: () => void }
@@ -22,6 +24,7 @@ export function DeviceDialogs({ state, devices, rooms, onClose }: Props) {
   if (!('device' in state)) {
     if (state.type === 'kasa') return <AddKasaDialog onClose={onClose} />
     if (state.type === 'addTv') return <AddTvDialog onClose={onClose} />
+    if (state.type === 'adoptPc') return <AdoptPcDialog onClose={onClose} />
     return <AddComputerDialog rooms={rooms} onClose={onClose} />
   }
   const { device } = state
@@ -36,9 +39,13 @@ export function DeviceDialogs({ state, devices, rooms, onClose }: Props) {
       return <PairTvDialog device={device} onClose={onClose} />
     case 'computer':
       return <EditComputerDialog device={device} onClose={onClose} />
-    case 'remove': {
-      const outletCount = devices.filter((d) => d.parentId === device.id).length
-      return <ConfirmRemoveDialog device={device} outletCount={outletCount} onClose={onClose} />
-    }
+    case 'remove':
+      return <RemoveDialog device={device} devices={devices} onClose={onClose} />
   }
+}
+
+function RemoveDialog({ device, devices, onClose }: { device: AdminDevice; devices: readonly AdminDevice[]; onClose: () => void }) {
+  const hasAgent = useHasAgent(device.id)
+  const outletCount = devices.filter((d) => d.parentId === device.id).length
+  return <ConfirmRemoveDialog device={device} outletCount={outletCount} hasAgent={hasAgent} onClose={onClose} />
 }

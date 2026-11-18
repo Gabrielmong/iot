@@ -112,6 +112,75 @@ describe('DeviceAdminSection', () => {
     await waitFor(() => expect(calls).toEqual([{ deviceId: 'd1', userIds: ['u2'] }]))
   })
 
+  describe('PC permissions', () => {
+    const pc = () => detail({ name: 'Office PC', brand: 'WOL', kind: 'COMPUTER' })
+    const grants = (calls: { op: string; vars: unknown }[] = []): Record<string, Handler> => ({
+      Users: reply({ users: [admin, ana, ben] }),
+      DeviceGrants: reply({ deviceGrants: ['u1'] }),
+      ComputerGrants: reply({ computerGrants: [{ __typename: 'ComputerGrant', userId: 'u1', stats: true, power: false }] }),
+      SetDeviceGrants: (op) => {
+        calls.push({ op: 'devices', vars: op.variables })
+        return of({ data: { setDeviceGrants: (op.variables as { userIds: string[] }).userIds } })
+      },
+      SetComputerGrants: (op) => {
+        calls.push({ op: 'computer', vars: op.variables })
+        return of({ data: { setComputerGrants: [] } })
+      },
+    })
+    const openAccess = async (name: string) => {
+      fireEvent.click(await screen.findByRole('button', { name: 'Who has access' }))
+      await screen.findByRole('checkbox', { name: /Gabriel/ })
+      return within(screen.getByRole('dialog', { name: `Who has access to ${name}` }))
+    }
+
+    it('a PC shows Live stats and Power actions for each granted user', async () => {
+      setup('ADMIN', pc(), grants())
+      const dialog = await openAccess('Office PC')
+      expect(await dialog.findByRole('checkbox', { name: 'Live stats for Ana' })).toBeChecked()
+      expect(dialog.getByRole('checkbox', { name: 'Power actions for Ana' })).not.toBeChecked()
+      expect(dialog.queryByRole('checkbox', { name: 'Live stats for Ben' })).not.toBeInTheDocument()
+    })
+
+    it("a plug shows no PC permissions", async () => {
+      setup('ADMIN', detail(), grants())
+      const dialog = await openAccess('Kettle')
+      expect(dialog.queryByRole('checkbox', { name: /Live stats/ })).not.toBeInTheDocument()
+    })
+
+    it('saving sends the access list, then the ticked PC permissions', async () => {
+      const calls: { op: string; vars: unknown }[] = []
+      setup('ADMIN', pc(), grants(calls))
+      const dialog = await openAccess('Office PC')
+      fireEvent.click(await dialog.findByRole('checkbox', { name: 'Power actions for Ana' }))
+      fireEvent.click(dialog.getByRole('checkbox', { name: 'Ben' }))
+      fireEvent.click(dialog.getByRole('checkbox', { name: 'Live stats for Ben' }))
+      fireEvent.click(dialog.getByRole('button', { name: 'Save' }))
+      await waitFor(() =>
+        expect(calls).toEqual([
+          { op: 'devices', vars: { deviceId: 'd1', userIds: ['u1', 'u2'] } },
+          {
+            op: 'computer',
+            vars: {
+              deviceId: 'd1',
+              grants: [
+                { userId: 'u1', stats: true, power: true },
+                { userId: 'u2', stats: true, power: false },
+              ],
+            },
+          },
+        ]),
+      )
+    })
+
+    it("unticking a user's access removes their PC permissions", async () => {
+      setup('ADMIN', pc(), grants())
+      const dialog = await openAccess('Office PC')
+      await dialog.findByRole('checkbox', { name: 'Live stats for Ana' })
+      fireEvent.click(dialog.getByRole('checkbox', { name: 'Ana' }))
+      expect(dialog.queryByRole('checkbox', { name: 'Live stats for Ana' })).not.toBeInTheDocument()
+    })
+  })
+
   it('confirms removal, then goes to the dashboard', async () => {
     const calls: unknown[] = []
     setup('ADMIN', detail(), {

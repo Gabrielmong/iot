@@ -1,11 +1,13 @@
 import { badInput } from "../api-errors.js";
 
 export type Rgb = { r: number; g: number; b: number };
-/** What one device is set to. An absent `on` leaves power as it is. */
-export type DeviceAction = { deviceId: string; on?: boolean; brightness?: number; color?: Rgb; colorTempK?: number };
+/** A PC power action a routine may take (restart is left to people). */
+export type RoutinePcPower = "SLEEP" | "SHUTDOWN";
+/** What one device is set to. An absent `on` leaves power as it is; `pcPower` (a PC with an agent) stands alone. */
+export type DeviceAction = { deviceId: string; on?: boolean; brightness?: number; color?: Rgb; colorTempK?: number; pcPower?: RoutinePcPower };
 export type RoutineStep = { kind: "SET"; actions: DeviceAction[] } | { kind: "WAIT"; minutes: number } | { kind: "ROUTINE"; routineId: string };
 
-export type ActionInput = { deviceId: string; on?: boolean | null; brightness?: number | null; color?: Rgb | null; colorTempK?: number | null };
+export type ActionInput = { deviceId: string; on?: boolean | null; brightness?: number | null; color?: Rgb | null; colorTempK?: number | null; pcPower?: string | null };
 export type StepInput = { kind: "SET" | "WAIT" | "ROUTINE"; waitMinutes?: number | null; actions?: ActionInput[] | null; routineId?: string | null };
 
 export const LIMITS = { maxSteps: 20, maxDevicesPerStep: 50, minWait: 1, maxWait: 720, maxNesting: 3 } as const;
@@ -37,6 +39,7 @@ function parseStep(input: StepInput): RoutineStep {
 }
 
 function parseAction(input: ActionInput): DeviceAction {
+  if (input.pcPower != null) return parsePcPower(input);
   if (input.on === false) return { deviceId: input.deviceId, on: false };
   const action: DeviceAction = { deviceId: input.deviceId };
   if (input.on === true) action.on = true;
@@ -56,6 +59,13 @@ function parseAction(input: ActionInput): DeviceAction {
   }
   if (Object.keys(action).length === 1) throw badInput("Each device must change something");
   return action;
+}
+
+function parsePcPower(input: ActionInput): DeviceAction {
+  if (input.pcPower === "RESTART") throw badInput("Routines can't restart a PC");
+  if (input.pcPower !== "SLEEP" && input.pcPower !== "SHUTDOWN") throw badInput("Unknown PC power action");
+  if (input.on != null || input.brightness != null || input.color != null || input.colorTempK != null) throw badInput("Sleep or shut down a PC, nothing else in the same step");
+  return { deviceId: input.deviceId, pcPower: input.pcPower };
 }
 
 /** Every device id the steps use. */

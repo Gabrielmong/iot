@@ -72,6 +72,10 @@ describe("loadConfig android", () => {
     expect(loadConfig(base).androidApkDir).toBeUndefined();
     expect(loadConfig({ ...base, ANDROID_APK_DIR: "D:/x/shared/android" }).androidApkDir).toBe("D:/x/shared/android");
   });
+  it("leaves the agent folder unset, and reads AGENT_DIR", () => {
+    expect(loadConfig(base).agentDir).toBeUndefined();
+    expect(loadConfig({ ...base, AGENT_DIR: "D:/x/shared/agent" }).agentDir).toBe("D:/x/shared/agent");
+  });
 });
 
 describe("loadConfig deployer", () => {

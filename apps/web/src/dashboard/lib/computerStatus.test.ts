@@ -1,4 +1,4 @@
-import { deviceFixture } from '../../test/deviceFixtures'
+import { computerFixture, deviceFixture } from '../../test/deviceFixtures'
 import type { WakeStatus } from '../../gql/graphql'
 import { computerStatus } from './computerStatus'
 
@@ -6,7 +6,7 @@ const pc = (status: WakeStatus | null, seconds: number | null = null) =>
   deviceFixture({
     kind: 'COMPUTER',
     brand: 'WOL',
-    computer: { confirmable: true, rdpAddress: null, wake: status && { status, seconds } },
+    computer: computerFixture({ wake: status && { status, seconds } }),
   })
 
 describe('computerStatus', () => {
