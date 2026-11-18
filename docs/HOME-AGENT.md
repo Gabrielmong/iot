@@ -8,7 +8,7 @@ HomeAgent is a small Windows service you install on a PC that the app manages. W
 
 Waking a PC still works through Wake-on-LAN (see [WAKE-ON-LAN.md](WAKE-ON-LAN.md)). The agent can't wake a PC that is asleep or off, because it isn't running then.
 
-The agent only does what the app can ask of it: sleep, shut down, restart, cancel, send stats, update itself and uninstall. It can't run arbitrary commands.
+The agent only does what the app can ask of it: sleep, shut down, restart, cancel, send stats, update itself and uninstall. It also opens Remote Desktop links on the PC it runs on. It can't run arbitrary commands.
 
 ## Adopting a PC
 
@@ -46,6 +46,10 @@ Both need the PC itself to be granted. Guests can never be given a PC.
 
 Stats are only collected while someone has the PC's page open (every 2 seconds). Nothing is stored. Collection stops about 10 seconds after the last viewer leaves.
 
+## Remote Desktop links
+
+The agent registers a `home-rdp://` link type on the PC each time its service starts. The app's **Remote Desktop** button uses it, so on this PC the button opens Remote Desktop Connection directly instead of downloading a `.rdp` file. The link only accepts a bare private IPv4 address (no names, ports or options) and just runs `mstsc /v:<ip>`. See [WAKE-ON-LAN.md](WAKE-ON-LAN.md#remote-desktop).
+
 ## Updates
 
 New versions are published by the `Agent` GitHub workflow and picked up by the server on deploy (see [RUNNING.md](RUNNING.md) §10). An agent updates itself the next time it connects. The update is checked against its SHA-256 before it is installed. The service restarts itself during an update, and you don't need to do anything.
@@ -55,7 +59,7 @@ New versions are published by the `Agent` GitHub workflow and picked up by the s
 - **From the app:** Admin › Devices › Remove on the PC. The agent uninstalls itself: at once if it's connected, otherwise the next time it connects (for up to 90 days).
 - **On the PC:** run `"C:\Program Files\HomeAgent\HomeAgent.exe" uninstall` and accept the admin prompt.
 
-Both remove the service and the files in Program Files and ProgramData.
+Both remove the service, the `home-rdp://` link type and the files in Program Files and ProgramData.
 
 ## How light it is
 

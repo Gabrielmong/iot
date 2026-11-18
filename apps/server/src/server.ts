@@ -82,7 +82,7 @@ export async function startServer(deps: ServiceDeps, opts: ServerOptions): Promi
   });
   await apollo.start();
 
-  const graphql = expressMiddleware(apollo, { context: ({ req }) => httpContext(deps, req.headers) });
+  const graphql = expressMiddleware(apollo, { context: ({ req }) => httpContext(deps, req.headers, req.socket.remoteAddress) });
   httpServer.on("request", createHttpApp({ graphql, api: { [CAMERAS_PATH]: cameras.router, [IDENTITY_PATH]: identityRouter({ prisma: deps.prisma, apkDir: opts.androidApkDir }), [APK_PATH]: apkRouter(opts.androidApkDir), [ENROLL_PATH]: enrollRouter(deps), [AGENT_FILES_PATH]: agentFilesRouter({ prisma: deps.prisma, now: deps.now, agentDir: opts.agentDir }) }, webDist: opts.webDist }));
 
   await new Promise<void>((resolve, reject) => {

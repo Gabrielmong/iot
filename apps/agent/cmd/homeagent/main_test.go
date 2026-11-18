@@ -15,6 +15,7 @@ func TestParseModes(t *testing.T) {
 		{[]string{"uninstall"}, invocation{mode: modeUninstall}},
 		{[]string{"prompt", "--action", "restart", "--by", "Ann Lee", "--seconds", "60"}, invocation{mode: modePrompt, action: "restart", by: "Ann Lee", seconds: 60}},
 		{[]string{"update-helper", "--from", `C:\a.exe`, "--to", `C:\b.exe`}, invocation{mode: modeUpdateHelper, from: `C:\a.exe`, to: `C:\b.exe`}},
+		{[]string{"rdp", "home-rdp://192.168.0.100/"}, invocation{mode: modeRdp, link: "home-rdp://192.168.0.100/"}},
 	}
 	for _, c := range cases {
 		got, err := parseArgs(c.args)
@@ -34,6 +35,8 @@ func TestRejectsUnknownModesAndBadFlags(t *testing.T) {
 		{"prompt", "--action", "sleep", "--by", "x", "--seconds", "-1"},
 		{"update-helper", "--from", `C:\a.exe`},
 		{"service", "--extra"},
+		{"rdp"},
+		{"rdp", "home-rdp://192.168.0.100", "extra"},
 	} {
 		if _, err := parseArgs(args); err == nil {
 			t.Errorf("%v accepted", args)

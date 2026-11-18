@@ -15,20 +15,22 @@ export type ApiContext = Ctx & {
   deps: ServiceDeps;
   /** Set on WebSocket operations: re-checks the session without sliding it. */
   watch?: SessionWatch;
+  /** The HTTP peer's address (unset on WebSocket operations). */
+  remoteAddress?: string;
 };
 
 /**
  * HTTP context. A user's own request slides the session; a background request (BACKGROUND_HEADER: 1)
  * only validates it, so an idle shared screen still expires.
  */
-export async function httpContext(deps: ServiceDeps, headers: IncomingHttpHeaders): Promise<ApiContext> {
+export async function httpContext(deps: ServiceDeps, headers: IncomingHttpHeaders, remoteAddress?: string): Promise<ApiContext> {
   const token = tokenFromAuthHeader(headers.authorization);
   if (headers[BACKGROUND_HEADER] === "1") {
     const user = token ? await checkSession(deps.prisma, token, deps.now(), announceExpiry(deps.sessionEvents)) : null;
-    return sessionContext(deps, user, token);
+    return { ...sessionContext(deps, user, token), remoteAddress };
   }
   const ctx = await buildContext(deps, token, deps.now(), announceExpiry(deps.sessionEvents));
-  return { ...ctx, token, deps };
+  return { ...ctx, token, deps, remoteAddress };
 }
 
 /** Context for a session that was checked without sliding (background HTTP and WebSocket). */

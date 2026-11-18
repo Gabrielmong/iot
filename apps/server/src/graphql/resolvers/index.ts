@@ -29,6 +29,7 @@ export const resolvers = {
     ...integrationResolvers.Query,
     ...layoutResolvers.Query,
     ...routineResolvers.Query,
+    ...computerResolvers.Query,
     ...cameraGroupResolvers.Query,
     ...cameraControlResolvers.Query,
     ...deployResolvers.Query,

@@ -106,6 +106,7 @@ type Query {
   deployLog(eventId: ID!): String     # admin; null when the event has no log
   ciJobLog(jobId: ID!): String        # admin; a finished CI job's log, null when unavailable
   cameraControls(deviceId: ID!): CameraControls # null: not a visible camera, or no known controls
+  remoteDesktopLaunch: Boolean!       # the viewer's own PC runs the HomeAgent, so `home-rdp://` links open Remote Desktop there
 }
 type Mutation {
   moveCamera(deviceId: ID!, direction: PanDirection!): Boolean! # repeat while held; the server stops the camera 4 s after the last one

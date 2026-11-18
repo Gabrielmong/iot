@@ -3,9 +3,11 @@ import { computerFixture, deviceFixture } from '../../test/deviceFixtures'
 import type { WakeStatus } from '../../gql/graphql'
 import type { DeviceDetail } from '../types'
 import { RemoteDesktopButton } from './RemoteDesktopButton'
-import { openUrl } from './openUrl'
+import { openRemoteDesktop } from './rdp/openRemoteDesktop'
+import { useRemoteDesktopLaunch } from './rdp/useRemoteDesktopLaunch'
 
-vi.mock('./openUrl', () => ({ openUrl: vi.fn() }))
+vi.mock('./rdp/openRemoteDesktop', () => ({ openRemoteDesktop: vi.fn() }))
+vi.mock('./rdp/useRemoteDesktopLaunch', () => ({ useRemoteDesktopLaunch: vi.fn(() => false) }))
 
 const pc = (on: boolean, rdpAddress: string | null, status: WakeStatus | null = null) =>
   ({
@@ -15,10 +17,9 @@ const pc = (on: boolean, rdpAddress: string | null, status: WakeStatus | null = 
     ip: null,
   }) as DeviceDetail
 
-const LINK = 'rdp://full%20address=s:192.168.0.50'
 
 describe('RemoteDesktopButton', () => {
-  beforeEach(() => vi.mocked(openUrl).mockClear())
+  beforeEach(() => vi.mocked(openRemoteDesktop).mockClear())
 
   it('is hidden until Remote Desktop has answered', () => {
     render(<RemoteDesktopButton device={pc(true, null)} onWake={vi.fn()} />)
@@ -29,8 +30,15 @@ describe('RemoteDesktopButton', () => {
     const onWake = vi.fn()
     render(<RemoteDesktopButton device={pc(true, '192.168.0.50')} onWake={onWake} />)
     fireEvent.click(screen.getByRole('button', { name: /remote desktop/i }))
-    expect(openUrl).toHaveBeenCalledWith(LINK)
+    expect(openRemoteDesktop).toHaveBeenCalledWith('192.168.0.50', 'Office PC', false)
     expect(onWake).not.toHaveBeenCalled()
+  })
+
+  it("launches Remote Desktop directly when this browser's PC has the HomeAgent", () => {
+    vi.mocked(useRemoteDesktopLaunch).mockReturnValueOnce(true)
+    render(<RemoteDesktopButton device={pc(true, '192.168.0.50')} onWake={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: /remote desktop/i }))
+    expect(openRemoteDesktop).toHaveBeenCalledWith('192.168.0.50', 'Office PC', true)
   })
 
   it('wakes an off PC and opens once the server says it woke', () => {
@@ -40,9 +48,9 @@ describe('RemoteDesktopButton', () => {
     expect(onWake).toHaveBeenCalledTimes(1)
     expect(screen.getByRole('button', { name: /waking/i })).toBeDisabled()
     rerender(<RemoteDesktopButton device={pc(false, '192.168.0.50', 'WAKING')} onWake={onWake} />)
-    expect(openUrl).not.toHaveBeenCalled()
+    expect(openRemoteDesktop).not.toHaveBeenCalled()
     rerender(<RemoteDesktopButton device={pc(true, '192.168.0.50', 'WOKE')} onWake={onWake} />)
-    expect(openUrl).toHaveBeenCalledWith(LINK)
+    expect(openRemoteDesktop).toHaveBeenCalledWith('192.168.0.50', 'Office PC', false)
     expect(screen.getByRole('button', { name: /remote desktop/i })).toBeEnabled()
   })
 
@@ -53,7 +61,7 @@ describe('RemoteDesktopButton', () => {
     expect(screen.getByRole('button', { name: /waking/i })).toBeDisabled()
     rerender(<RemoteDesktopButton device={pc(false, '192.168.0.50', 'WAKING')} onWake={onWake} />)
     rerender(<RemoteDesktopButton device={pc(false, '192.168.0.50', 'FAILED')} onWake={onWake} />)
-    expect(openUrl).not.toHaveBeenCalled()
+    expect(openRemoteDesktop).not.toHaveBeenCalled()
     expect(screen.getByRole('button', { name: /remote desktop/i })).toBeEnabled()
   })
 
@@ -61,7 +69,7 @@ describe('RemoteDesktopButton', () => {
     render(<RemoteDesktopButton device={pc(false, '192.168.0.50')} onWake={() => Promise.resolve(false)} />)
     fireEvent.click(screen.getByRole('button', { name: /remote desktop/i }))
     expect(await screen.findByRole('button', { name: /remote desktop/i })).toBeEnabled()
-    expect(openUrl).not.toHaveBeenCalled()
+    expect(openRemoteDesktop).not.toHaveBeenCalled()
   })
 
   it('gives up if no result arrives in time', () => {

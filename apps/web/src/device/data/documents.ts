@@ -14,6 +14,13 @@ export const DEVICE = graphql(`
 `)
 
 /** A PC's On/Off changes since `since` (plus the one before it), oldest first. */
+/** Whether this browser's own PC runs the HomeAgent (so Remote Desktop opens through a `home-rdp://` link). */
+export const REMOTE_DESKTOP_LAUNCH = graphql(`
+  query RemoteDesktopLaunch {
+    remoteDesktopLaunch
+  }
+`)
+
 export const POWER_HISTORY = graphql(`
   query PowerHistory($id: ID!, $since: String!) {
     device(id: $id) {

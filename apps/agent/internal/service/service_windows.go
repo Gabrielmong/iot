@@ -14,6 +14,7 @@ import (
 	"homeagent/internal/paths"
 	"homeagent/internal/power"
 	"homeagent/internal/protocol"
+	"homeagent/internal/rdplink"
 	"homeagent/internal/state"
 	"homeagent/internal/stats"
 	"homeagent/internal/update"
@@ -61,6 +62,9 @@ func (h *handler) Execute(_ []string, req <-chan svc.ChangeRequest, status chan<
 func run(ctx context.Context, stop context.CancelFunc, version int) {
 	log := eventlog.Open()
 	_ = os.Remove(filepath.Join(paths.InstallDir(), update.NewExeName)) // left by the previous update
+	if err := rdplink.Register(paths.InstalledExe()); err != nil { // the Remote Desktop button's links; not worth failing over
+		log.Error("can't register Remote Desktop links: " + err.Error())
+	}
 	st, err := state.Load(paths.StateFile())
 	if err != nil {
 		log.Error("can't read the agent's settings: " + err.Error())

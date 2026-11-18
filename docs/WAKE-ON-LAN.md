@@ -73,7 +73,13 @@ The server follows each wake for up to 2 minutes, checking every 3 seconds. The 
 
 ## Remote Desktop
 
-Once the server has seen the PC answer on 3389, the PC's page shows a **Remote Desktop** button. It wakes the PC if needed, waits for it, then opens an `rdp://` link, which the Windows Remote Desktop app or the Android RD client handles.
+Once the server has seen the PC answer on 3389, the PC's page shows a **Remote Desktop** button. It wakes the PC if needed, waits for it, then opens Remote Desktop:
+
+- **On a PC with the HomeAgent** Remote Desktop Connection opens directly. The agent registers a `home-rdp://` link type; the first time, the browser asks to open it (tick *Always allow*). The server knows the browser is on an agent PC from the request's IP, so the PC's IP in the app must be current. Links only open PCs at private IPv4 addresses.
+- **In any other browser** a `<PC name>.rdp` file downloads; open it and Windows' built-in Remote Desktop Connection connects (Windows may warn about the file's unknown publisher).
+- **In the Android app** the file goes straight to the phone's Remote Desktop app (Microsoft's *Windows App*). If none is installed, the app says so.
+
+Sign in with the PC's Windows account (for a Microsoft account, its email and password; a PIN doesn't work over Remote Desktop). Remote Desktop needs Windows **Pro** on the PC.
 
 ## History
 

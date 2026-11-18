@@ -9,6 +9,7 @@ import (
 	"homeagent/internal/eventlog"
 	"homeagent/internal/install"
 	"homeagent/internal/prompt"
+	"homeagent/internal/rdplink"
 	"homeagent/internal/service"
 	"homeagent/internal/update"
 )
@@ -38,6 +39,11 @@ func main() {
 		}
 	case modePrompt:
 		os.Exit(prompt.Show(inv.action, inv.by, inv.seconds))
+	case modeRdp:
+		if err := rdplink.Open(inv.link); err != nil {
+			install.Tell("HomeAgent couldn't open Remote Desktop: "+err.Error(), true)
+			os.Exit(1)
+		}
 	case modeUpdateHelper:
 		if err := update.Helper(inv.from, inv.to, install.StopService, install.StartService); err != nil {
 			eventlog.Open().Error("update failed: " + err.Error())

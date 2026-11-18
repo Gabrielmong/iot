@@ -16,6 +16,7 @@ const (
 	modePrompt                   // the countdown dialog, run in the signed-in user's session
 	modeUninstall                // remove the agent from this PC (admin)
 	modeUpdateHelper             // swaps in a downloaded build, then restarts the service
+	modeRdp                      // a `home-rdp://` link was opened: start Remote Desktop to that PC
 )
 
 type invocation struct {
@@ -24,6 +25,7 @@ type invocation struct {
 	by       string
 	seconds  int
 	from, to string
+	link     string
 }
 
 var promptActions = map[string]bool{"sleep": true, "shutdown": true, "restart": true}
@@ -32,6 +34,12 @@ var promptActions = map[string]bool{"sleep": true, "shutdown": true, "restart": 
 func parseArgs(args []string) (invocation, error) {
 	if len(args) == 0 {
 		return invocation{mode: modeInstall}, nil
+	}
+	if args[0] == "rdp" { // `rdp "<link>"`, as the link type's open command passes it; the link is checked when used
+		if len(args) != 2 {
+			return invocation{}, errors.New("rdp needs exactly one link")
+		}
+		return invocation{mode: modeRdp, link: args[1]}, nil
 	}
 	fs := flag.NewFlagSet(args[0], flag.ContinueOnError)
 	fs.SetOutput(io.Discard)

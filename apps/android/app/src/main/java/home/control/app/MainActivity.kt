@@ -23,6 +23,7 @@ import home.control.app.update.UpdateBar
 import home.control.app.update.updateAvailable
 import home.control.app.web.HomeChromeClient
 import home.control.app.web.HomeWebViewClient
+import home.control.app.web.RdpBridge
 import home.control.app.web.configureWebView
 import kotlinx.coroutines.launch
 
@@ -59,6 +60,7 @@ class MainActivity : ComponentActivity() {
         configureWebView(webView, BuildConfig.VERSION_NAME)
         webView.webViewClient = HomeWebViewClient({ serverOrigin }, ::showUnreachable)
         webView.webChromeClient = HomeChromeClient(this)
+        webView.addJavascriptInterface(RdpBridge(this), RdpBridge.NAME)
 
         onBackPressedDispatcher.addCallback(this) {
             if (webView.canGoBack()) webView.goBack() else finish()

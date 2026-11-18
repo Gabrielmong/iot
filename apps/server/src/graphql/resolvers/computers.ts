@@ -1,9 +1,10 @@
 import type { ComputerInfo } from "../../devices/computers/computer-info.js";
+import { viewerHasAgent, viewerIps } from "../../agent/viewer-pc.js";
 import { badInput } from "../../api-errors.js";
 import { addComputer, updateComputer, type ComputerInput } from "../../services/computers.js";
 import { adminDeviceView } from "../admin-device.js";
 import type { ApiContext } from "../context.js";
-import { requireAdmin } from "../guards.js";
+import { requireAdmin, requireUser } from "../guards.js";
 
 /** Computers are added and edited by hand (admin only); waking goes through setDeviceState. */
 export const computerResolvers = {
@@ -15,6 +16,12 @@ export const computerResolvers = {
       if (parent.kind !== "COMPUTER" || !parent.computer?.confirmable) return [];
       const events = await ctx.manager.history.since(parent.id, from);
       return events.map((e) => ({ on: e.on, at: e.at.toISOString() }));
+    },
+  },
+  Query: {
+    remoteDesktopLaunch: (_: unknown, __: unknown, ctx: ApiContext) => {
+      requireUser(ctx);
+      return viewerHasAgent(ctx.prisma, viewerIps(ctx.remoteAddress));
     },
   },
   Mutation: {

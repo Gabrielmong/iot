@@ -11,6 +11,7 @@ import (
 
 	"homeagent/internal/eventlog"
 	"homeagent/internal/paths"
+	"homeagent/internal/rdplink"
 )
 
 // FromService removes the agent while the service itself is running (the server said the PC was removed):
@@ -55,6 +56,7 @@ func removeFiles() error {
 		return err
 	}
 	_ = eventlog.Unregister()
+	_ = rdplink.Unregister()
 	return deleteLater(paths.InstallDir())
 }
 
