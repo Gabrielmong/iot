@@ -59,10 +59,12 @@ func removeFiles() error {
 }
 
 // deleteLater removes dir ~3 s from now, after this process (which runs from it) has exited.
+// `cmd /s /c "…"` strips exactly the outer pair of quotes, so the quoted paths inside survive.
 func deleteLater(dir string) error {
 	cmd := exec.Command(paths.System32("cmd.exe"))
 	cmd.SysProcAttr = &syscall.SysProcAttr{
-		CmdLine:       fmt.Sprintf(`/c "%s" -n 4 127.0.0.1 >nul & rmdir /s /q "%s"`, paths.System32("PING.EXE"), dir),
+		CmdLine: fmt.Sprintf(`"%s" /d /s /c ""%s" -n 4 127.0.0.1 >nul & rmdir /s /q "%s""`,
+			paths.System32("cmd.exe"), paths.System32("PING.EXE"), dir),
 		HideWindow:    true,
 		CreationFlags: windows.CREATE_NO_WINDOW | windows.CREATE_NEW_PROCESS_GROUP,
 	}
