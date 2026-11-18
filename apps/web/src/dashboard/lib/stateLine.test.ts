@@ -35,4 +35,8 @@ describe('stateLine', () => {
   it('shows Not supported yet for unknown devices', () => {
     expect(stateLine(deviceFixture({ kind: 'UNKNOWN' }))).toBe('Not supported yet')
   })
+
+  it('a computer the probe has no answer for is Status unknown', () => {
+    expect(stateLine(deviceFixture({ kind: 'COMPUTER', brand: 'WOL', on: null }))).toBe('Status unknown')
+  })
 })

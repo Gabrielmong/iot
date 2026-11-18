@@ -54,7 +54,7 @@ export const subscriptionResolvers = {
       resolve: async (payload: DeviceStatePayload, _: unknown, ctx: ApiContext) => {
         const row = await deviceRow(ctx.prisma, payload.deviceId);
         if (!row) throw notFound("Device");
-        return toApiDevice(row, payload.state, requireUser(ctx), ctx.manager.tv.info(row));
+        return toApiDevice(row, payload.state, requireUser(ctx), ctx.manager.tv.info(row), ctx.manager.computerInfo(row));
       },
     },
     devicesChanged: {

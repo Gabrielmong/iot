@@ -13,6 +13,16 @@ export const DEVICE = graphql(`
   }
 `)
 
+/** A PC's On/Off changes since `since` (plus the one before it), oldest first. */
+export const POWER_HISTORY = graphql(`
+  query PowerHistory($id: ID!, $since: String!) {
+    device(id: $id) {
+      id
+      powerHistory(since: $since) { on at }
+    }
+  }
+`)
+
 export const DEVICE_GRANTS = graphql(`
   query DeviceGrants($deviceId: ID!) {
     deviceGrants(deviceId: $deviceId)

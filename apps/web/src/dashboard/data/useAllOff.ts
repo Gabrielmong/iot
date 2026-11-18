@@ -2,7 +2,7 @@ import { useCallback } from 'react'
 import { devicesToTurnOff } from '../lib/devicesToTurnOff'
 import type { Device, StatePatch } from '../types'
 
-type SetState = (device: Device, patch: StatePatch) => Promise<void>
+type SetState = (device: Device, patch: StatePatch) => Promise<unknown>
 
 /**
  * Returns `allOff(devices)`: sends `on: false` to every on, toggleable device at once. Each command

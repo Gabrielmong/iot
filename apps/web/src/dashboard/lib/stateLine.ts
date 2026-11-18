@@ -14,8 +14,8 @@ export function stateLine(d: Device): string {
   if (!isSupportedKind(d)) return 'Not supported yet'
   if (!d.state.online) return 'Offline'
   if (isCamera(d)) return 'Online'
-  // A computer is probed only when it has an IP; without one its state is unknown.
-  if (isComputer(d) && d.state.on == null) return ''
+  // A PC without an IP, or one whose probe never got an answer (firewalled), can't be told apart from Off.
+  if (isComputer(d) && d.state.on == null) return 'Status unknown'
   if (!isDeviceOn(d.state)) return 'Off'
   const light = d.state.light
   if (light) {

@@ -6,7 +6,6 @@ import { tileGlow } from '../lib/tileGlow'
 import { tileOnStyle } from '../lib/tileOnStyle'
 import type { Device } from '../types'
 import { ComputerTileAction } from './ComputerTileAction'
-import { useWaking } from './useWaking'
 import { NeedsSetupLink } from './NeedsSetupLink'
 import { PowerIndicator } from './PowerIndicator'
 import { TileBody } from './TileBody'
@@ -42,12 +41,9 @@ export function DeviceTile({ device, isAdmin, onToggle, onOpenDetails }: Props) 
   const enabled = toggleable || opensOnTap
   const computer = isComputer(device)
   const powerControls = onStyle !== null && !computer
-  const [waking, startWaking] = useWaking()
+  const waking = device.computer?.wake?.status === 'WAKING'
   const open = () => onOpenDetails(device)
-  const tap = () => {
-    if (computer) startWaking()
-    onToggle(device)
-  }
+  const tap = () => onToggle(device)
   const press = useLongPress({
     onLongPress: enabled ? open : noop,
     onClick: toggleable ? tap : opensOnTap ? open : noop,

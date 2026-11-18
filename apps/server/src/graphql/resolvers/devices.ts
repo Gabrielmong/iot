@@ -12,7 +12,7 @@ import { toApiDevice } from "../mappers.js";
 
 type DeviceArgs = { id: string; name?: string | null; roomId?: string | null; kind?: DeviceKind | null };
 
-const withState = (ctx: ApiContext) => (row: DeviceRow) => toApiDevice(row, ctx.manager.getState(row.id), ctx.user ?? undefined, ctx.manager.tv.info(row));
+const withState = (ctx: ApiContext) => (row: DeviceRow) => toApiDevice(row, ctx.manager.getState(row.id), ctx.user ?? undefined, ctx.manager.tv.info(row), ctx.manager.computerInfo(row));
 
 export const deviceResolvers = {
   Query: {

@@ -7,7 +7,7 @@ import { SET_DEVICE_STATE } from './documents'
 
 /**
  * Returns `setState(device, patch)`: applies the patch optimistically (Apollo drops the optimistic
- * layer on error, reverting the tile) and reports failures through `onError` as snackbar text.
+ * layer on error, reverting the tile) and reports failures through `onError` as snackbar text. Resolves to whether it succeeded.
  */
 export function useSetDeviceState(onError: (message: string) => void) {
   const [mutate] = useMutation(SET_DEVICE_STATE)
@@ -18,8 +18,10 @@ export function useSetDeviceState(onError: (message: string) => void) {
           variables: { id: device.id, patch },
           optimisticResponse: { setDeviceState: applyPatch(device, patch) },
         })
+        return true
       } catch (error) {
         onError(commandErrorMessage(error, device.name))
+        return false
       }
     },
     [mutate, onError],

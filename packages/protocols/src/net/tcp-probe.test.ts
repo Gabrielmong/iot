@@ -1,6 +1,6 @@
 import net from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
-import { probeTcp } from './tcp-probe.js';
+import { probeOpenPorts, probeTcp } from './tcp-probe.js';
 
 const servers: net.Server[] = [];
 afterEach(() => { for (const s of servers.splice(0)) s.close(); });
@@ -29,5 +29,14 @@ describe('probeTcp', () => {
     const started = Date.now();
     expect(await probeTcp('127.0.0.1', [await closedPort()], 500)).toBe(false);
     expect(Date.now() - started).toBeLessThan(700);
+  });
+});
+
+describe('probeOpenPorts', () => {
+  it('returns only the ports that accept, in the order given', async () => {
+    const a = await listen();
+    const closed = await closedPort();
+    const b = await listen();
+    expect(await probeOpenPorts('127.0.0.1', [a, closed, b], 500)).toEqual([a, b]);
   });
 });

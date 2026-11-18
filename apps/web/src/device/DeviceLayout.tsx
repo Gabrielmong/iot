@@ -7,6 +7,7 @@ import { DeviceHeader } from './header/DeviceHeader'
 import { DeviceInfoCard } from './info/DeviceInfoCard'
 import { DeviceAdminSection } from './admin/DeviceAdminSection'
 import { ComputerCard } from './computer/ComputerCard'
+import { PowerHistoryCard } from './computer/history/PowerHistoryCard'
 import { TvRemoteCard } from './tv/TvRemoteCard'
 import { CameraPreview } from './preview/CameraPreview'
 import { PreviewCard } from './preview/PreviewCard'
@@ -16,7 +17,7 @@ const twoColumns = { display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr
 
 /**
  * Header, then preview | controls (switchable kinds), the live view (cameras), the remote (TVs) or the
- * Wake card (computers), then info | admin.
+ * Wake | history cards (computers), then info | admin.
  * The admin card renders only for admins. Sections rise in one after another.
  */
 export function DeviceLayout({ device }: { device: DeviceDetail }) {
@@ -36,6 +37,11 @@ export function DeviceLayout({ device }: { device: DeviceDetail }) {
           {(isTv(device) || isComputer(device)) && (
             <Box sx={twoColumns}>
               <RevealItem>{isTv(device) ? <TvRemoteCard device={device} /> : <ComputerCard device={device} isAdmin={isAdmin} />}</RevealItem>
+              {isComputer(device) && (
+                <RevealItem>
+                  <PowerHistoryCard device={device} />
+                </RevealItem>
+              )}
             </Box>
           )}
           {isSwitchable(device) && (

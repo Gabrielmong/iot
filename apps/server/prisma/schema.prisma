@@ -108,8 +108,26 @@ model Device {
   streamSource StreamSource?
   grants       DeviceGrant[]
   cameraGroups CameraGroupMember[]
+  powerEvents  PowerEvent[]
 
   @@unique([brand, externalId])
+}
+
+enum PowerSource {
+  PROBE
+  AGENT
+}
+
+/** A computer turning on or off (only changes are stored; kept 30 days). */
+model PowerEvent {
+  id       String      @id @default(cuid())
+  deviceId String
+  device   Device      @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  on       Boolean
+  at       DateTime
+  source   PowerSource @default(PROBE)
+
+  @@index([deviceId, at])
 }
 
 model DeviceGrant {

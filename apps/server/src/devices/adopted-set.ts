@@ -17,6 +17,12 @@ export class AdoptedSet {
     return false;
   }
 
+  /** The brand whose driver controls `id`, or undefined when it isn't adopted. */
+  brandOf(id: string): Brand | undefined {
+    for (const [brand, set] of this.byBrand) if (set.has(id)) return brand;
+    return undefined;
+  }
+
   all(): Set<string> {
     return new Set([...this.byBrand.values()].flatMap((s) => [...s]));
   }

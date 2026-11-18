@@ -6,6 +6,7 @@ type Light = NonNullable<Device['state']['light']>
 export type DeviceOpts = Partial<Pick<Device, 'id' | 'name' | 'brand' | 'kind' | 'status' | 'parentId' | 'room'>> & {
   online?: boolean
   on?: boolean | null
+  computer?: Device['computer']
 }
 
 /** A device as the server returns it (with `__typename`s so the Apollo cache normalizes it). */
@@ -23,6 +24,7 @@ export function deviceFixture(o: DeviceOpts = {}, light: Light | null = null): D
     status: o.status ?? 'OK',
     connection: 'LOCAL',
     tv: null,
+    computer: o.computer !== undefined ? o.computer : (o.kind === 'COMPUTER' ? { __typename: 'ComputerInfo', confirmable: true, rdpAddress: null, wake: null } : null),
     state: {
       __typename: 'DeviceState',
       online: o.online ?? true,
