@@ -1,5 +1,11 @@
 package winsession
 
+// noSession is the id Windows uses for "no session" (0xFFFFFFFF).
+const noSession uint32 = 0xFFFFFFFF
+
+// NoSession is Console.ID when nobody is using the PC.
+const NoSession = noSession
+
 // candidate is one Windows session as pick sees it.
 type candidate struct {
 	ID     uint32

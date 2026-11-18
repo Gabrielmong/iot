@@ -15,11 +15,10 @@ var (
 )
 
 const (
-	noSession        uint32 = 0xFFFFFFFF
-	wtsUserName             = 5
-	wtsSessionInfo          = 24
-	wtsSessionInfoEx        = 25
-	stateLock               = 0 // WTS_SESSIONSTATE_LOCK
+	wtsUserName      = 5
+	wtsSessionInfo   = 24
+	wtsSessionInfoEx = 25
+	stateLock        = 0 // WTS_SESSIONSTATE_LOCK
 )
 
 // Console is the session someone is using. ID is NoSession when nobody is (e.g. at boot).
@@ -29,9 +28,6 @@ type Console struct {
 	IdleS  *int64 // nil when Windows doesn't report it
 	Locked bool
 }
-
-// NoSession is Console.ID when nobody is using the PC.
-const NoSession = noSession
 
 // wtsInfo mirrors WTSINFOW (Win32 layout; the int64 fields are 8-aligned like LARGE_INTEGER).
 type wtsInfo struct {
