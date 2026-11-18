@@ -9,7 +9,7 @@ import type { Device, StatePatch } from '../../dashboard/types'
 export function usePatchDevice(device: Device) {
   const [error, setError] = useState<string | null>(null)
   const setState = useSetDeviceState(setError)
-  const onPatch = useCallback((patch: StatePatch) => void setState(device, patch), [setState, device])
+  const onPatch = useCallback((patch: StatePatch) => setState(device, patch), [setState, device])
   const clearError = useCallback(() => setError(null), [])
   return { onPatch, error, clearError }
 }

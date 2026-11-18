@@ -44,5 +44,6 @@ export const resolvers = {
     ...cameraControlResolvers.Mutation,
     ...deployResolvers.Mutation,
   },
+  Device: computerResolvers.Device,
   ...subscriptionResolvers,
 };

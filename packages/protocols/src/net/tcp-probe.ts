@@ -10,8 +10,13 @@ function tryConnect(host: string, port: number, timeoutMs: number): Promise<bool
   });
 }
 
-/** True when any of `ports` on `host` accepts a TCP connection within `timeoutMs`. Ports are tried in parallel. */
-export async function probeTcp(host: string, ports: readonly number[], timeoutMs: number): Promise<boolean> {
+/** The `ports` on `host` that accept a TCP connection within `timeoutMs`, in the order given. Tried in parallel. */
+export async function probeOpenPorts(host: string, ports: readonly number[], timeoutMs: number): Promise<number[]> {
   const results = await Promise.all(ports.map((p) => tryConnect(host, p, timeoutMs)));
-  return results.some(Boolean);
+  return ports.filter((_, i) => results[i]);
+}
+
+/** True when any of `ports` on `host` accepts a TCP connection within `timeoutMs`. */
+export async function probeTcp(host: string, ports: readonly number[], timeoutMs: number): Promise<boolean> {
+  return (await probeOpenPorts(host, ports, timeoutMs)).length > 0;
 }

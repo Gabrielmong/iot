@@ -17,6 +17,7 @@ export const DEVICE_FIELDS = graphql(`
       light { on brightness mode color { r g b } colorTempK }
     }
     tv { apps canPowerOn }
+    computer { confirmable rdpAddress wake { status seconds } }
   }
 `)
 

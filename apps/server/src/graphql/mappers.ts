@@ -1,3 +1,4 @@
+import type { ComputerInfo } from "../devices/computers/computer-info.js";
 import type { TvInfo } from "../devices/tv-control.js";
 import type { DeviceState } from "../devices/types.js";
 import type { Room, User } from "../generated/prisma/client.js";
@@ -28,7 +29,7 @@ export function toApiState(s: DeviceState) {
 }
 
 /** `ip` is shown to admins only; `connection` is CLOUD exactly when the camera streams through the cloud. */
-export function toApiDevice(d: DeviceRow, state: DeviceState, viewer: Pick<User, "role"> = { role: "USER" }, tv: TvInfo | null = null) {
+export function toApiDevice(d: DeviceRow, state: DeviceState, viewer: Pick<User, "role"> = { role: "USER" }, tv: TvInfo | null = null, computer: ComputerInfo | null = null) {
   return {
     id: d.id,
     name: d.name,
@@ -44,6 +45,7 @@ export function toApiDevice(d: DeviceRow, state: DeviceState, viewer: Pick<User,
     streamSource: d.streamSource,
     ip: viewer.role === "ADMIN" ? d.ip : null,
     tv,
+    computer,
   };
 }
 

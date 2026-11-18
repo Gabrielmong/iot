@@ -2,7 +2,7 @@
 
 The app wakes a PC by sending a "magic packet" to its network adapter. The packet is a UDP broadcast to port 9 on the home network. A PC only wakes if it is set up for it. Check each PC once against the list below.
 
-The same steps appear in the app: Admin › Devices › Add PC › "How to set up Wake-on-LAN". Keep the two in step (`apps/web/src/device/computer/WakeSetupChecklist.tsx`).
+The same steps appear in the app: Admin › Devices › Add PC › "How to set up Wake-on-LAN". Keep the two in step (`apps/web/src/device/computer/wakeSetupSteps.ts`).
 
 ## Setup checklist (each PC)
 
@@ -17,6 +17,7 @@ The same steps appear in the app: Admin › Devices › Add PC › "How to set u
 
    With Fast Startup on, "Shut down" is really a hibernate, and many adapters won't wake from it.
 4. **Wired and on the same network:** the PC must be connected by Ethernet, on the same subnet as the home server. Wi-Fi adapters generally can't wake a powered-off PC.
+5. **Let the home server see the PC:** allow port 445 (or Remote Desktop) from the server, so the app can tell On from Off and keep the PC's history. See [Online status](#online-status-optional-ip).
 
 ## Finding the MAC address
 
@@ -34,9 +35,37 @@ Use the **Physical Address** of the *Ethernet* adapter, not Wi-Fi or a virtual a
 
 ## Online status (optional IP)
 
-If you also enter the PC's IP address, the app checks every few seconds whether the PC answers on TCP 445 (file sharing) or 3389 (Remote Desktop). The tile then shows *Online* or *Offline*. Without an IP, the tile shows only **Wake**.
+If you also enter the PC's IP address, the server checks every few seconds whether the PC answers on TCP 445 (file sharing), 3389 (Remote Desktop) or 22 (SSH). The tile then shows *On* or *Off*.
 
 For a reliable status, give the PC a fixed IP: either a DHCP reservation in the router, or a static address.
+
+**Confirmable PCs.** A firewalled PC never answers, so the server can't tell *Off* from *blocked*. Until one of those ports has answered at least once, the PC is not *confirmable*:
+
+- its status reads **Status unknown** instead of *Off*;
+- a wake ends as **Wake sent, can't confirm** instead of *Didn't wake*;
+- no On/Off history is kept or shown.
+
+A PC without an IP is never confirmable. Once a port has answered, the server remembers it, and from then on a silent PC really is off.
+
+Windows blocks port 445 on networks set to *Public*. To let only the home server through, run this once in an **admin** PowerShell on the PC (change the address if your server's IP differs):
+
+```powershell
+New-NetFirewallRule -DisplayName "Home server presence check (SMB)" -Direction Inbound -Protocol TCP -LocalPort 445 -RemoteAddress 192.168.0.100 -Action Allow
+```
+
+Turning on Remote Desktop works too, and also enables the **Remote Desktop** button.
+
+## After a wake
+
+The server follows each wake for up to 2 minutes, checking every 3 seconds. The tile and the PC's page show *Waking…*, then *On after 23 s* or *Didn't wake* (with a link to the setup checklist for admins). The result stays for a minute.
+
+## Remote Desktop
+
+Once the server has seen the PC answer on 3389, the PC's page shows a **Remote Desktop** button. It wakes the PC if needed, waits for it, then opens an `rdp://` link, which the Windows Remote Desktop app or the Android RD client handles.
+
+## History
+
+For confirmable PCs, every On/Off change is kept for 30 days. The PC's page shows *On since 18:42* / *Last on Yesterday 23:10* and a 24 h / 7 day timeline.
 
 ## Who can wake a PC
 

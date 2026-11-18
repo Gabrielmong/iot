@@ -2,6 +2,10 @@ import type { PubSubEngine } from "graphql-subscriptions";
 import { badInput } from "../api-errors.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { AdoptedSet } from "./adopted-set.js";
+import { computerInfo, type ComputerInfo } from "./computers/computer-info.js";
+import { probeSeen } from "./computers/computer-config.js";
+import { PowerHistory } from "./computers/power-history.js";
+import { WakeTracker } from "./computers/wake-tracker.js";
 import { deviceNotFound, deviceNotReady, deviceUnreachable } from "./command-errors.js";
 import { assertPatchFits, notReadyReason } from "./command-guard.js";
 import { COMMAND_TIMEOUT_MS, runCommand } from "./command-runner.js";
@@ -43,6 +47,8 @@ export class DeviceManager {
   private readonly writes: SerialQueue;
   /** Serializes driver syncs, so each reads the DB and is applied before the next one starts. */
   private readonly syncs: SerialQueue;
+  /** Records a PC's On/Off change, then publishes it, so a client that refetches history on the change sees it. */
+  private readonly powerChanges: SerialQueue;
   private readonly log: DriverLog;
   private readonly commandTimeoutMs: number;
   private readonly now: () => Date;
@@ -52,6 +58,10 @@ export class DeviceManager {
   private sweepTimer: ReturnType<typeof setInterval> | undefined;
   /** Remote keys, app launches and pairing for TVs. */
   readonly tv: TvControl;
+  /** On/Off changes of computers. */
+  readonly history: PowerHistory;
+  /** Follows each PC's latest wake. */
+  readonly wakes: WakeTracker;
 
   constructor(
     private readonly prisma: PrismaClient,
@@ -66,8 +76,11 @@ export class DeviceManager {
     this.discovery = new DiscoveryService(prisma);
     this.statuses = new StatusStore(prisma);
     this.records = new DeviceRecords(prisma, secretKey, this.log);
+    this.history = new PowerHistory(prisma, this.now);
+    this.wakes = new WakeTracker({ now: () => this.now().getTime(), onChange: (id) => this.publishState(id, this.cache.get(id)) });
     this.writes = new SerialQueue((err) => this.log.error("device manager: write failed", err));
     this.syncs = new SerialQueue((err) => this.log.error("device manager: sync failed", err));
+    this.powerChanges = new SerialQueue((err) => this.log.error("device manager: power history write failed", err));
     this.tv = new TvControl({
       records: this.records,
       tvFor: (brand) => this.driverFor(brand)?.tv,
@@ -87,12 +100,18 @@ export class DeviceManager {
 
   async stop(): Promise<void> {
     clearInterval(this.sweepTimer);
+    this.wakes.stopAll();
     await Promise.all(this.drivers.map((d) => this.guard(d, "stop", () => d.stop())));
     await this.idle();
   }
 
   getState(deviceId: string): DeviceState {
     return this.cache.get(deviceId);
+  }
+
+  /** Wake progress, RDP address and confirmability of a PC; null for other devices. */
+  computerInfo(row: { id: string; kind: string; ip: string | null; config: unknown }): ComputerInfo | null {
+    return computerInfo(row, this.wakes.get(row.id));
   }
 
   /** Throws GraphQLError with code DEVICE_UNREACHABLE, DEVICE_NOT_READY or NOT_FOUND. */
@@ -105,8 +124,14 @@ export class DeviceManager {
     const driver = this.driverFor(device.brand);
     if (!driver) throw deviceNotReady(deviceId, `no driver for ${device.brand}`);
 
+    const alreadyOn = this.cache.get(deviceId).on === true;
     const result = await runCommand(driver, device, patch, this.log, this.commandTimeoutMs);
-    if (result.ok) return;
+    if (result.ok) {
+      if (device.kind === "COMPUTER" && patch.on === true) {
+        this.wakes.start(deviceId, { hasIp: !!device.ip, confirmable: probeSeen(device), alreadyOn });
+      }
+      return;
+    }
     if (result.unreachable) this.publishOffline(deviceId);
     throw result.error;
   }
@@ -187,6 +212,7 @@ export class DeviceManager {
     const ids = await deleteDeviceTree(this.prisma, deviceId);
     this.adopted.remove(ids);
     for (const id of ids) this.trials.remove(id);
+    for (const id of ids) this.wakes.cancel(id);
     this.cache.retain(this.adopted.all());
     for (const id of ids) this.statuses.forget(id);
     this.discovery.forgetSightings();
@@ -229,6 +255,7 @@ export class DeviceManager {
   async idle(): Promise<void> {
     await this.writes.idle();
     await this.syncs.idle();
+    await this.powerChanges.idle();
   }
 
   private context(): DriverContext {
@@ -252,7 +279,22 @@ export class DeviceManager {
       if (this.trials.has(deviceId)) this.trialStates.set(deviceId, state);
       return; // otherwise a late report from a stopped link, or a removed device
     }
-    if (this.cache.set(deviceId, state)) this.publishState(deviceId, state);
+    const before = this.cache.get(deviceId).on;
+    const changed = this.cache.set(deviceId, state);
+    if (state.on === true) this.wakes.sawOn(deviceId);
+    if (!changed) return;
+    if (this.adopted.brandOf(deviceId) === "WOL" && typeof state.on === "boolean" && state.on !== before) {
+      const on = state.on;
+      this.powerChanges.push(async () => {
+        try {
+          await this.history.record(deviceId, on);
+        } finally {
+          this.publishState(deviceId, this.cache.get(deviceId));
+        }
+      });
+      return;
+    }
+    this.publishState(deviceId, state);
   }
 
   private async onStatus(deviceId: string, status: DeviceStatus): Promise<void> {

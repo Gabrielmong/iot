@@ -1,4 +1,4 @@
-import { probeTcp, sendMagicPacket } from "@home/protocols";
+import { probeOpenPorts, sendMagicPacket } from "@home/protocols";
 import type { DeviceRecord, Driver, DriverContext, StatePatch } from "../types.js";
 import { LinkRegistry } from "./link-registry.js";
 import { WolLink, type Probe } from "./wol-link.js";
@@ -34,7 +34,7 @@ export class WolDriver implements Driver {
   async sync(devices: DeviceRecord[]): Promise<void> {
     const ctx = this.ctx;
     if (!ctx) throw new Error("WolDriver not started");
-    const probe = this.opts.probe ?? probeTcp;
+    const probe = this.opts.probe ?? probeOpenPorts;
     this.links.sync(
       devices,
       (d) => d.id,
@@ -51,6 +51,6 @@ export class WolDriver implements Driver {
   async setState(device: DeviceRecord, patch: StatePatch): Promise<void> {
     if (patch.on !== true) return;
     await (this.opts.send ?? sendMagicPacket)(macOf(device));
-    this.links.get(device.id)?.pollNow();
+    this.links.get(device.id)?.watchWake();
   }
 }

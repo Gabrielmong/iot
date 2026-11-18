@@ -48,6 +48,28 @@ describe('ComputerCard', () => {
     expect(screen.getByRole('button', { name: /set up wake-on-lan/i })).toBeInTheDocument()
   })
 
+  it("shows Didn't wake with a link to the setup checklist for admins", () => {
+    const wake = { status: 'FAILED' as const, seconds: null }
+    const d = { ...office(false), computer: { confirmable: true, rdpAddress: null, wake } }
+    setup(d, true)
+    expect(screen.getByText("Didn't wake")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /check the setup checklist/i }))
+    expect(screen.getByRole('button', { name: /set up wake-on-lan/i })).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it("a regular user sees Didn't wake without the checklist link", () => {
+    const wake = { status: 'FAILED' as const, seconds: null }
+    setup({ ...office(false), computer: { confirmable: true, rdpAddress: null, wake } })
+    expect(screen.getByText("Didn't wake")).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /check the setup checklist/i })).toBeNull()
+  })
+
+  it('the checklist tells admins to let the home server see the PC', () => {
+    setup(office(false), true)
+    fireEvent.click(screen.getByRole('button', { name: /set up wake-on-lan/i }))
+    expect(screen.getByText(/Let the home server see the PC/)).toBeInTheDocument()
+  })
+
   it('a regular user sees no setup link', () => {
     setup(office(null))
     expect(screen.queryByRole('button', { name: /set up wake-on-lan/i })).toBeNull()

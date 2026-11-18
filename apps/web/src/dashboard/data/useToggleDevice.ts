@@ -3,7 +3,7 @@ import { isComputer } from '../lib/capabilities'
 import { isDeviceOn } from '../lib/isDeviceOn'
 import type { Device, StatePatch } from '../types'
 
-type SetState = (device: Device, patch: StatePatch) => Promise<void>
+type SetState = (device: Device, patch: StatePatch) => Promise<unknown>
 
 /** Returns `toggle(device)`: flips `on` through `setState`; a computer is only ever woken. */
 export function useToggleDevice(setState: SetState) {

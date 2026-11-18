@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { ThemeProvider } from '@mui/material/styles'
 import { MemoryRouter } from 'react-router'
 import { theme } from '../../theme'
@@ -51,8 +51,7 @@ describe('DeviceTile', () => {
       expect(screen.queryByRole('link', { name: /set up/i })).not.toBeInTheDocument()
     })
 
-    it('a computer tile wakes on tap and shows Waking… for 5 s', () => {
-      vi.useFakeTimers()
+    it('a computer tile wakes on tap', () => {
       const device = pc({ on: false })
       const { onToggle } = renderTile(device)
       const tile = screen.getByRole('button', { name: 'Office PC' })
@@ -62,9 +61,14 @@ describe('DeviceTile', () => {
       expect(screen.queryByTestId('tile-toggle')).not.toBeInTheDocument()
       fireEvent.click(tile)
       expect(onToggle).toHaveBeenCalledWith(device)
+    })
+
+    it('a computer tile shows the server\'s wake progress', () => {
+      const wake = { status: 'WAKING' as const, seconds: null }
+      renderTile(pc({ on: false, computer: { confirmable: true, rdpAddress: null, wake } }))
+      const tile = screen.getByRole('button', { name: 'Office PC' })
       expect(tile).toHaveTextContent('Waking…')
-      act(() => vi.advanceTimersByTime(5000))
-      expect(tile).not.toHaveTextContent('Waking…')
+      expect(tile).not.toHaveTextContent(/\bOff\b/)
     })
 
     it('an awake computer has the on look but no power controls or Wake action', () => {
@@ -76,10 +80,11 @@ describe('DeviceTile', () => {
       expect(screen.queryByTestId('tile-toggle')).not.toBeInTheDocument()
     })
 
-    it('a computer without an IP shows no status', () => {
+    it('a computer the server can\'t see says Status unknown', () => {
       renderTile(pc({ on: null }))
       const tile = screen.getByRole('button', { name: 'Office PC' })
       expect(screen.queryByTestId('power-indicator')).not.toBeInTheDocument()
+      expect(tile).toHaveTextContent('Status unknown')
       expect(tile).not.toHaveTextContent(/Online|Offline|\bOn\b|\bOff\b/)
     })
   })
