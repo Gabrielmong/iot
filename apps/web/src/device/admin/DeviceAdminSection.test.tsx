@@ -4,7 +4,7 @@ import { MemoryRouter, Route, Routes } from 'react-router'
 import { of } from 'rxjs'
 import { setToken } from '../../auth/session'
 import { adminDeviceFixture, roomFixture, userFixture } from '../../test/adminFixtures'
-import { deviceFixture } from '../../test/deviceFixtures'
+import { computerFixture, deviceFixture } from '../../test/deviceFixtures'
 import { createTestClient, type Handler, liveSubscription, reply } from '../../test/testClient'
 import { DevicePage } from '../../pages/DevicePage'
 
@@ -222,5 +222,13 @@ describe('DeviceAdminSection', () => {
     fireEvent.change(dialog.getByLabelText('Name'), { target: { value: 'Teapot' } })
     fireEvent.click(dialog.getByRole('button', { name: 'Save' }))
     expect(await screen.findByRole('heading', { name: 'Teapot' })).toBeInTheDocument()
+  })
+
+  it("shows a PC's HomeAgent version against the published one", async () => {
+    const agent = { __typename: 'AgentInfo', connected: true, version: 1011 }
+    const pc = detail({ ...deviceFixture({ id: 'd1', name: 'Gandalf', brand: 'WOL', kind: 'COMPUTER', computer: computerFixture({ agent }) }) })
+    setup('ADMIN', pc, { PublishedAgentVersion: reply({ publishedAgentVersion: 1012 }), PowerHistory: reply({ device: { __typename: 'Device', id: 'd1', powerHistory: [] } }) })
+    const card = within(await screen.findByRole('region', { name: 'Admin' }))
+    expect(await card.findByText('HomeAgent v1011 · updating to v1012')).toBeInTheDocument()
   })
 })

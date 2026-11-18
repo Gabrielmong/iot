@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { useCurrentUser } from '../../auth/useCurrentUser'
 import { SectionCard } from '../common/SectionCard'
 import type { DeviceDetail } from '../types'
+import { AgentVersionNote } from './agent/AgentVersionNote'
 import { type AdminDialog, DeviceAdminDialogs } from './DeviceAdminDialogs'
 import { OnvifLocalSection } from './OnvifLocalSection'
 import { StreamSourceNote } from './StreamSourceNote'
@@ -29,6 +30,7 @@ export function DeviceAdminSection({ device }: { device: DeviceDetail }) {
   return (
     <SectionCard title="Admin">
       <StreamSourceNote device={device} />
+      <AgentVersionNote device={device} />
       <Stack spacing={1}>
         {button('Rename', 'edit')}
         {button('Move room', 'edit')}

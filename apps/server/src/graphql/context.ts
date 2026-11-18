@@ -17,20 +17,25 @@ export type ApiContext = Ctx & {
   watch?: SessionWatch;
   /** The HTTP peer's address (unset on WebSocket operations). */
   remoteAddress?: string;
+  /** Folder with the published HomeAgent (HTTP operations only). */
+  agentDir?: string;
 };
+
+/** What an HTTP operation knows beyond its headers. */
+export type HttpExtras = Pick<ApiContext, "remoteAddress" | "agentDir">;
 
 /**
  * HTTP context. A user's own request slides the session; a background request (BACKGROUND_HEADER: 1)
  * only validates it, so an idle shared screen still expires.
  */
-export async function httpContext(deps: ServiceDeps, headers: IncomingHttpHeaders, remoteAddress?: string): Promise<ApiContext> {
+export async function httpContext(deps: ServiceDeps, headers: IncomingHttpHeaders, extras: HttpExtras = {}): Promise<ApiContext> {
   const token = tokenFromAuthHeader(headers.authorization);
   if (headers[BACKGROUND_HEADER] === "1") {
     const user = token ? await checkSession(deps.prisma, token, deps.now(), announceExpiry(deps.sessionEvents)) : null;
-    return { ...sessionContext(deps, user, token), remoteAddress };
+    return { ...sessionContext(deps, user, token), ...extras };
   }
   const ctx = await buildContext(deps, token, deps.now(), announceExpiry(deps.sessionEvents));
-  return { ...ctx, token, deps, remoteAddress };
+  return { ...ctx, token, deps, ...extras };
 }
 
 /** Context for a session that was checked without sliding (background HTTP and WebSocket). */

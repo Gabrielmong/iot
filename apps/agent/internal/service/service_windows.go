@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -96,7 +97,7 @@ func run(ctx context.Context, stop context.CancelFunc, version int) {
 		Log:       log,
 	}
 	c = client.New(client.Config{Server: st.Server, Token: st.Token, Log: log}, agent, info)
-	log.Info("HomeAgent started")
+	log.Info(fmt.Sprintf("HomeAgent v%d started", version))
 	_ = c.Run(ctx)
 	agent.Sampler.Stop()
 }

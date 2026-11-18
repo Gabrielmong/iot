@@ -54,6 +54,8 @@ The agent registers a `home-rdp://` link type on the PC each time its service st
 
 New versions are published by the `Agent` GitHub workflow and picked up by the server on deploy (see [RUNNING.md](RUNNING.md) §10). An agent updates itself the next time it connects. The update is checked against its SHA-256 before it is installed. The service restarts itself during an update, and you don't need to do anything.
 
+To see whether a PC has updated, open it in the app: the **Admin** card shows its version, e.g. *HomeAgent v1012 · up to date*, *· updating to v1013*, or *· updates to v1013 when it next connects*. On the PC, Event Viewer › Windows Logs › Application (source **HomeAgent**) logs *HomeAgent v1012 started* each time the service starts.
+
 ## Removing it
 
 - **From the app:** Admin › Devices › Remove on the PC. The agent uninstalls itself: at once if it's connected, otherwise the next time it connects (for up to 90 days).

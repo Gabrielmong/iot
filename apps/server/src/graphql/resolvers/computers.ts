@@ -1,4 +1,5 @@
 import type { ComputerInfo } from "../../devices/computers/computer-info.js";
+import { readAgentInfo } from "../../agent/agent-store.js";
 import { viewerHasAgent, viewerIps } from "../../agent/viewer-pc.js";
 import { badInput } from "../../api-errors.js";
 import { addComputer, updateComputer, type ComputerInput } from "../../services/computers.js";
@@ -19,6 +20,10 @@ export const computerResolvers = {
     },
   },
   Query: {
+    publishedAgentVersion: (_: unknown, __: unknown, ctx: ApiContext) => {
+      requireAdmin(ctx);
+      return readAgentInfo(ctx.agentDir)?.version ?? null;
+    },
     remoteDesktopLaunch: (_: unknown, __: unknown, ctx: ApiContext) => {
       requireUser(ctx);
       return viewerHasAgent(ctx.prisma, viewerIps(ctx.remoteAddress));

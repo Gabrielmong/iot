@@ -21,6 +21,13 @@ export const REMOTE_DESKTOP_LAUNCH = graphql(`
   }
 `)
 
+/** The HomeAgent version the server offers agents (admin). */
+export const PUBLISHED_AGENT_VERSION = graphql(`
+  query PublishedAgentVersion {
+    publishedAgentVersion
+  }
+`)
+
 export const POWER_HISTORY = graphql(`
   query PowerHistory($id: ID!, $since: String!) {
     device(id: $id) {
