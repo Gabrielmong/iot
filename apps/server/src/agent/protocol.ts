@@ -18,7 +18,8 @@ export interface Stats {
   idleS?: number;
 }
 export interface PowerState { t: "power.state"; id: string; phase: PowerPhase; secondsLeft?: number }
-export type AgentMessage = Hello | { t: "heartbeat" } | Stats | PowerState | { t: "uninstall.ack" };
+export interface UpdateCheck { t: "update.check"; version: number }
+export type AgentMessage = Hello | { t: "heartbeat" } | Stats | PowerState | { t: "uninstall.ack" } | UpdateCheck;
 
 export type ServerMessage =
   | { t: "stats.start"; intervalMs: number }
@@ -26,13 +27,15 @@ export type ServerMessage =
   | { t: "power"; id: string; action: PowerAction; requestedBy: string; seconds: number }
   | { t: "power.cancel"; id: string }
   | { t: "uninstall" }
-  | { t: "update"; version: number; url: string; sha256: string };
+  | { t: "update"; version: number; url: string; sha256: string }
+  | { t: "update.none"; version: number };
 
 export const encode = (msg: ServerMessage): string => JSON.stringify({ v: 1, ...msg });
 
 const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 const isStr = (v: unknown): v is string => typeof v === "string";
 const strs = (v: unknown): string[] | null => (Array.isArray(v) && v.length <= 64 && v.every((s) => isStr(s) && s.length <= 64) ? v : null);
+const isVersion = (v: unknown): v is number => isNum(v) && Number.isInteger(v) && v >= 0;
 const PHASES = new Set<string>(["countdown", "cancelled", "executing", "skipped"]);
 
 function hello(m: Record<string, unknown>): Hello | null {
@@ -80,6 +83,8 @@ export function parseAgentMessage(raw: string): AgentMessage | null {
       return powerState(msg);
     case "uninstall.ack":
       return { t: "uninstall.ack" };
+    case "update.check":
+      return isVersion(msg.version) ? { t: "update.check", version: msg.version } : null;
     default:
       return null;
   }

@@ -2,9 +2,7 @@ package power
 
 import (
 	"errors"
-	"os"
 	"strconv"
-	"unsafe"
 
 	"golang.org/x/sys/windows"
 
@@ -25,33 +23,11 @@ func Launch(action, requestedBy string, seconds int) (Process, error) {
 	if session == winsession.NoSession {
 		return nil, errors.New("nobody is using the PC")
 	}
-	var token windows.Token
-	if err := windows.WTSQueryUserToken(session, &token); err != nil {
-		return nil, err
-	}
-	defer token.Close()
-	exe, err := os.Executable()
+	h, err := winsession.LaunchAs(session, []string{"prompt", "--action", action, "--by", requestedBy, "--seconds", strconv.Itoa(seconds)})
 	if err != nil {
 		return nil, err
 	}
-	args := []string{exe, "prompt", "--action", action, "--by", requestedBy, "--seconds", strconv.Itoa(seconds)}
-	cmdline := windows.ComposeCommandLine(args)
-	var env *uint16
-	var block *uint16
-	if windows.CreateEnvironmentBlock(&block, token, false) == nil {
-		env = block
-		defer windows.DestroyEnvironmentBlock(block)
-	}
-	si := windows.StartupInfo{Desktop: windows.StringToUTF16Ptr(`winsta0\default`)}
-	si.Cb = uint32(unsafe.Sizeof(si))
-	var pi windows.ProcessInformation
-	err = windows.CreateProcessAsUser(token, windows.StringToUTF16Ptr(exe), windows.StringToUTF16Ptr(cmdline),
-		nil, nil, false, windows.CREATE_UNICODE_ENVIRONMENT, env, nil, &si, &pi)
-	if err != nil {
-		return nil, err
-	}
-	windows.CloseHandle(pi.Thread)
-	return &winProcess{h: pi.Process}, nil
+	return &winProcess{h: h}, nil
 }
 
 type winProcess struct{ h windows.Handle }

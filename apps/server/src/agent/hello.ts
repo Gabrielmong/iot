@@ -23,6 +23,11 @@ export async function applyHello(prisma: PrismaClient, deviceId: string, hello: 
   return ip !== device.ip;
 }
 
+/** The answer to `update.check`: the offer when a newer agent is published, else the published version (0: none). */
+export function updateAnswer(agentDir: string | undefined, version: number): ServerMessage {
+  return updateOffer(agentDir, version) ?? { t: "update.none", version: readAgentInfo(agentDir)?.version ?? 0 };
+}
+
 /** An `update` for an agent older than the published one, else null. */
 export function updateOffer(agentDir: string | undefined, version: number): ServerMessage | null {
   const info = readAgentInfo(agentDir);

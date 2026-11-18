@@ -21,14 +21,14 @@ func TestHostRefusesAnythingElse(t *testing.T) {
 		"",
 		"home-rdp://",
 		"rdp://192.168.0.100",
-		"home-rdp://8.8.8.8",               // not on the home network
-		"home-rdp://pc.example.com",        // names could point anywhere
-		"home-rdp://192.168.0.100:3389",    // no ports
-		"home-rdp://192.168.0.100/x",       // no paths
-		"home-rdp://192.168.0.100?a=b",     // no queries
-		"home-rdp://user@192.168.0.100",    // no user info
-		"home-rdp://192.168.0.100 /admin",  // no extra arguments
-		"home-rdp://[fd00::1]",             // IPv4 only
+		"home-rdp://8.8.8.8",              // not on the home network
+		"home-rdp://pc.example.com",       // names could point anywhere
+		"home-rdp://192.168.0.100:3389",   // no ports
+		"home-rdp://192.168.0.100/x",      // no paths
+		"home-rdp://192.168.0.100?a=b",    // no queries
+		"home-rdp://user@192.168.0.100",   // no user info
+		"home-rdp://192.168.0.100 /admin", // no extra arguments
+		"home-rdp://[fd00::1]",            // IPv4 only
 	} {
 		if h, err := Host(raw); err == nil {
 			t.Errorf("%q accepted as %q", raw, h)

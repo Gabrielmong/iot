@@ -181,6 +181,10 @@ Setup needs a fresh `C:\HomeControl` (it does not exist yet; setup creates it al
 
 **Admin > Deploys**: the running release, the history (each deploy with its log, status and the reason for a failure), whether auto-deploy is on or paused (and why), **Deploy now**, **Restart app**, **Pause/Resume**, and **Roll back** on any kept earlier release. Rolling back pauses auto-deploy (reason `rolled back to <short-sha>`); only **Resume** turns it back on. A rollback is refused when it would go past a database migration (`Can't roll back past a database change; push a fix instead.`). The last 5 successful releases and the last 10 database backups are kept. If the helper is not running, the page says so and points here.
 
+### Tray icon on the server PC
+
+Install HomeAgent on the server PC like on any other PC (Admin › Devices › **Adopt this PC** download, see [HOME-AGENT.md](HOME-AGENT.md)). Its tray icon then gets a **Server** section: the server's state, **Open Deploys page**, **Restart server…** and **Deploy latest now…**, which do the same as **Restart app** and **Deploy now** on this page.
+
 ### When the app is down
 
 The Deploys page is part of the app, so look at the files: event logs in `C:\HomeControl\deployer\logs\`, the helper's own output in `C:\HomeControl\deployer\service.out.log` and `service.err.log`, the app's logs in `C:\HomeControl\shared\logs\` (go2rtc's pid file is in `shared\logs\run\` too, so a go2rtc left behind by a crashed run is found whichever release starts next). If `deployer\history.json` was damaged (for example by a power cut), the helper moves it aside as `history.json.corrupt-<time>`, uses `history.json.tmp` if that is intact or else starts with an empty history, and says so in `service.err.log`.

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"sync"
 	"testing"
@@ -112,4 +113,35 @@ func TestAFailedUpdateIsLoggedAndKeepsRunning(t *testing.T) {
 		time.Sleep(5 * time.Millisecond)
 	}
 	t.Fatalf("no error logged: %v", r.list())
+}
+
+type fakeEvents struct{ r *record }
+
+func (e fakeEvents) Connected(c bool)    { e.r.add(fmt.Sprintf("connected %v", c)) }
+func (e fakeEvents) UpdateOffered(v int) { e.r.add(fmt.Sprintf("offered %d", v)) }
+func (e fakeEvents) UpdateNone(v int)    { e.r.add(fmt.Sprintf("none %d", v)) }
+
+func TestAgentReportsEvents(t *testing.T) {
+	r := &record{}
+	a, _ := newAgent(r)
+	a.Events = fakeEvents{r}
+	a.OnConnected()
+	a.OnUpdateNone(protocol.UpdateNone{Version: 14})
+	a.OnUpdate(protocol.Update{Version: 15})
+	a.OnDisconnected()
+	got := map[string]bool{}
+	for _, e := range r.list() {
+		got[e] = true
+	}
+	for _, want := range []string{"connected true", "none 14", "offered 15", "connected false"} {
+		if !got[want] {
+			t.Errorf("missing %q in %v", want, r.list())
+		}
+	}
+}
+
+func TestAgentWithoutEventsIsFine(t *testing.T) {
+	a, _ := newAgent(&record{})
+	a.OnConnected()
+	a.OnUpdateNone(protocol.UpdateNone{Version: 1})
 }

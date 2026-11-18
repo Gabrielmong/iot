@@ -11,6 +11,7 @@ import (
 	"homeagent/internal/prompt"
 	"homeagent/internal/rdplink"
 	"homeagent/internal/service"
+	"homeagent/internal/tray/win"
 	"homeagent/internal/update"
 )
 
@@ -39,6 +40,8 @@ func main() {
 		}
 	case modePrompt:
 		os.Exit(prompt.Show(inv.action, inv.by, inv.seconds))
+	case modeTray:
+		os.Exit(win.Run())
 	case modeRdp:
 		if err := rdplink.Open(inv.link); err != nil {
 			install.Tell("HomeAgent couldn't open Remote Desktop: "+err.Error(), true)

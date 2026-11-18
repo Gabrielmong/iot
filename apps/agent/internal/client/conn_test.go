@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -27,6 +28,10 @@ func (r *recorder) OnPowerCancel(id string)    { r.add("power.cancel " + id) }
 func (r *recorder) OnUninstall()               { r.add("uninstall") }
 func (r *recorder) OnUpdate(u protocol.Update) { r.add("update") }
 func (r *recorder) OnDisconnected()            { r.add("disconnected") }
+func (r *recorder) OnConnected()               { r.add("connected") }
+func (r *recorder) OnUpdateNone(u protocol.UpdateNone) {
+	r.add(fmt.Sprintf("update.none %d", u.Version))
+}
 func (r *recorder) OnPower(p protocol.Power) {
 	r.mu.Lock()
 	r.power = append(r.power, p)
@@ -157,5 +162,30 @@ func TestSendWithoutAConnectionReportsFalse(t *testing.T) {
 	c := New(Config{Server: "http://127.0.0.1:1", Token: "t", Log: &logs{}}, &recorder{}, hello)
 	if c.Send(protocol.Heartbeat{}) {
 		t.Fatal("sent without a connection")
+	}
+}
+
+func TestReportsConnectedThenUpdateNoneThenDisconnected(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			return
+		}
+		ctx := r.Context()
+		_, _, _ = c.Read(ctx) // hello
+		_ = c.Write(ctx, websocket.MessageText, []byte(`{"v":1,"t":"update.none","version":15}`))
+		time.Sleep(50 * time.Millisecond)
+		_ = c.Close(websocket.StatusNormalClosure, "bye")
+	}))
+	defer srv.Close()
+	rec := &recorder{}
+	ctx, cancel := context.WithCancel(context.Background())
+	sleep := func(ctx context.Context, d time.Duration) error { cancel(); return ctx.Err() }
+	c := New(Config{Server: srv.URL, Token: "tok", Log: &logs{}, HeartbeatEvery: time.Hour, Sleep: sleep}, rec, hello)
+	_ = c.Run(ctx)
+	ev, _ := rec.snapshot()
+	want := []string{"connected", "update.none 15", "disconnected"}
+	if strings.Join(ev, ",") != strings.Join(want, ",") {
+		t.Fatalf("events %v", ev)
 	}
 }

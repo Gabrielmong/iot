@@ -48,7 +48,13 @@ type Update struct {
 	Sha256  string `json:"sha256"`
 }
 
+// UpdateNone answers an update.check: no newer agent; Version is the published one (0: none).
+type UpdateNone struct {
+	Version int `json:"version"`
+}
+
 func (StatsStart) isMessage()  {}
+func (UpdateNone) isMessage()  {}
 func (StatsStop) isMessage()   {}
 func (Power) isMessage()       {}
 func (PowerCancel) isMessage() {}
@@ -92,6 +98,8 @@ func Decode(raw []byte) (Message, error) {
 		return Uninstall{}, nil
 	case "update":
 		return decodeAs[Update](raw)
+	case "update.none":
+		return decodeAs[UpdateNone](raw)
 	default:
 		return nil, fmt.Errorf("%w: %q", ErrUnknown, head.T)
 	}

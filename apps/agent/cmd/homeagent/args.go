@@ -17,6 +17,7 @@ const (
 	modeUninstall                // remove the agent from this PC (admin)
 	modeUpdateHelper             // swaps in a downloaded build, then restarts the service
 	modeRdp                      // a `home-rdp://` link was opened: start Remote Desktop to that PC
+	modeTray                     // the tray icon, started by the service in each signed-in session
 )
 
 type invocation struct {
@@ -49,6 +50,8 @@ func parseArgs(args []string) (invocation, error) {
 		inv.mode = modeService
 	case "uninstall":
 		inv.mode = modeUninstall
+	case "tray":
+		inv.mode = modeTray
 	case "prompt":
 		inv.mode = modePrompt
 		fs.StringVar(&inv.action, "action", "", "")

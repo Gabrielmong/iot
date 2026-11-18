@@ -50,6 +50,16 @@ Stats are only collected while someone has the PC's page open (every 2 seconds).
 
 The agent registers a `home-rdp://` link type on the PC each time its service starts. The app's **Remote Desktop** button uses it, so on this PC the button opens Remote Desktop Connection directly instead of downloading a `.rdp` file. The link only accepts a bare private IPv4 address (no names, ports or options) and just runs `mstsc /v:<ip>`. See [WAKE-ON-LAN.md](WAKE-ON-LAN.md#remote-desktop).
 
+## Tray icon
+
+Each person signed into the PC (at the console or over Remote Desktop) gets a small house icon in the notification area. The service starts it when they sign in, unlock or connect, so there is nothing to install or add to Startup. It goes grey while the agent isn't connected to Home.
+
+- **Left-click** opens Home in the browser.
+- **Right-click** shows the agent's version and whether it's connected, **Open Home**, **Open this PC in Home**, **Check for updates** (updates straight away if a newer agent is published) and **Hide until next sign-in**.
+- **On the server PC** (the one running HomeDeployer) the menu starts with a **Server** section: its state (*Running 94c48fc*, *Deploying abc1234*, *Not responding*, *Stopped*, *Deployer not responding*), **Open Deploys page**, **Restart server…** and **Deploy latest now…**. Both ask first, and a notification says when the restart or deploy has finished. The Deploys page history shows who did it as *&lt;Windows user&gt; on &lt;PC&gt; (tray)*. **Anyone signed into the server PC can use these**, so don't give other people accounts on it.
+
+The tray runs as the signed-in person and has no rights of its own: it asks the service through the pipe `\\.\pipe\HomeAgent.tray`, which only signed-in users can open and which only answers a fixed set of requests (status, check for updates, restart, deploy, hide). The tray only trusts the pipe when it's served by a Windows service, and only opens `http(s)` links. If the service stops (for example during an update), the icons go away and come back when it starts again. A tray that keeps crashing is restarted at most 3 times in 5 minutes.
+
 ## Updates
 
 New versions are published by the `Agent` GitHub workflow and picked up by the server on deploy (see [RUNNING.md](RUNNING.md) §10). An agent updates itself the next time it connects. The update is checked against its SHA-256 before it is installed. The service restarts itself during an update, and you don't need to do anything.

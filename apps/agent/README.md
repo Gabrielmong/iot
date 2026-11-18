@@ -12,6 +12,12 @@ firewall change. See `docs/HOME-AGENT.md` for what it does on a PC and how to re
 | `internal/state` | `C:\ProgramData\HomeAgent\agent.json` (server, device id, token); the folder is SYSTEM + Administrators only |
 | `internal/netinfo` | Picks the wake MAC, real MACs and IPs (skips Hyper-V, WSL, VPN, loopback…) |
 | `internal/protocol` | The v1 wire protocol (closed message set, mirrors `apps/server/src/agent/protocol.ts`) |
+| `internal/traypipe` | The tray ↔ service pipe: protocol, the service's listener, the tray's client |
+| `internal/trayhub` | The service's side of the tray: status for the trays, their requests, update checks |
+| `internal/trays` | When the service starts a tray in a session (hide, backoff) and starting them |
+| `internal/tray` | What the tray shows: menu, tooltip, links, "deploy finished" notifications |
+| `internal/tray/win` | The tray's Win32 icon, menu, balloons and window |
+| `internal/serverpc` | On the server PC: the deployer's local API and the server's state |
 
 Windows-only code lives in `*_windows.go`; everything else is tested on any OS.
 

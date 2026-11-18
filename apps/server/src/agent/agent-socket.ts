@@ -2,7 +2,7 @@ import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
 import { WebSocketServer, type WebSocket } from "ws";
 import type { PrismaClient } from "../generated/prisma/client.js";
-import { applyHello, updateOffer } from "./hello.js";
+import { applyHello, updateAnswer, updateOffer } from "./hello.js";
 import type { AgentHub } from "./hub.js";
 import { encode, parseAgentMessage } from "./protocol.js";
 import { clearRemoval, pendingRemoval } from "./removals.js";
@@ -65,6 +65,7 @@ export function createAgentSockets(deps: AgentSocketDeps, opts: { agentDir?: str
       }
       if (!deviceId) return;
       if (msg.t === "hello") onHello(ws, deviceId, msg);
+      if (msg.t === "update.check") return void ws.send(encode(updateAnswer(opts.agentDir, msg.version)));
       deps.agents.received(deviceId, msg);
     });
     ws.on("close", () => {

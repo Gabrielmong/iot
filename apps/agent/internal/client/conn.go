@@ -113,6 +113,7 @@ func (c *Client) session(ctx context.Context) error {
 	if !c.Send(c.hello()) {
 		return errors.New("hello failed")
 	}
+	c.h.OnConnected()
 	sctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	go c.heartbeats(sctx)

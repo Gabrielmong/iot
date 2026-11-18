@@ -16,6 +16,7 @@ func TestParseModes(t *testing.T) {
 		{[]string{"prompt", "--action", "restart", "--by", "Ann Lee", "--seconds", "60"}, invocation{mode: modePrompt, action: "restart", by: "Ann Lee", seconds: 60}},
 		{[]string{"update-helper", "--from", `C:\a.exe`, "--to", `C:\b.exe`}, invocation{mode: modeUpdateHelper, from: `C:\a.exe`, to: `C:\b.exe`}},
 		{[]string{"rdp", "home-rdp://192.168.0.100/"}, invocation{mode: modeRdp, link: "home-rdp://192.168.0.100/"}},
+		{[]string{"tray"}, invocation{mode: modeTray}},
 	}
 	for _, c := range cases {
 		got, err := parseArgs(c.args)
@@ -36,6 +37,8 @@ func TestRejectsUnknownModesAndBadFlags(t *testing.T) {
 		{"update-helper", "--from", `C:\a.exe`},
 		{"service", "--extra"},
 		{"rdp"},
+		{"tray", "--x"},
+		{"tray", "extra"},
 		{"rdp", "home-rdp://192.168.0.100", "extra"},
 	} {
 		if _, err := parseArgs(args); err == nil {

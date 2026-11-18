@@ -15,6 +15,7 @@ func TestDecodesEveryServerMessage(t *testing.T) {
 		`{"v":1,"t":"power.cancel","id":"p1"}`:                                                      PowerCancel{ID: "p1"},
 		`{"v":1,"t":"uninstall"}`:                                                                   Uninstall{},
 		`{"v":1,"t":"update","version":1004,"url":"/agent/HomeAgent.exe","sha256":"ab12"}`:          Update{Version: 1004, URL: "/agent/HomeAgent.exe", Sha256: "ab12"},
+		`{"v":1,"t":"update.none","version":15}`:                                                    UpdateNone{Version: 15},
 	}
 	for raw, want := range cases {
 		got, err := Decode([]byte(raw))
@@ -84,5 +85,11 @@ func TestRejectsCountdownsOutsideTenSecondsToAnHour(t *testing.T) {
 		if _, err := Decode([]byte(raw)); err == nil {
 			t.Errorf("seconds %s accepted", secs)
 		}
+	}
+}
+
+func TestEncodeUpdateCheck(t *testing.T) {
+	if got := string(Encode(UpdateCheck{Version: 14})); got != `{"v":1,"t":"update.check","version":14}` {
+		t.Fatalf("got %s", got)
 	}
 }

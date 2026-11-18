@@ -56,6 +56,12 @@ type PowerState struct {
 // UninstallAck confirms the agent is removing itself.
 type UninstallAck struct{}
 
+// UpdateCheck asks the server for a newer agent than Version (answered with update or update.none).
+type UpdateCheck struct {
+	Version int `json:"version"`
+}
+
+func (UpdateCheck) msgType() string  { return "update.check" }
 func (Hello) msgType() string        { return "hello" }
 func (Heartbeat) msgType() string    { return "heartbeat" }
 func (Stats) msgType() string        { return "stats" }

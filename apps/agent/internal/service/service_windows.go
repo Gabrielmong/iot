@@ -32,11 +32,13 @@ func (h *handler) Execute(_ []string, req <-chan svc.ChangeRequest, status chan<
 	status <- svc.Status{State: svc.StartPending}
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
+	sessions := make(chan sessionEvent, 16)
 	go func() {
 		defer close(done)
-		run(ctx, cancel, h.version)
+		run(ctx, cancel, h.version, sessions)
 	}()
-	status <- svc.Status{State: svc.Running, Accepts: svc.AcceptStop | svc.AcceptShutdown}
+	accepts := svc.AcceptStop | svc.AcceptShutdown | svc.AcceptSessionChange
+	status <- svc.Status{State: svc.Running, Accepts: accepts}
 	for {
 		select {
 		case <-done:
@@ -46,6 +48,11 @@ func (h *handler) Execute(_ []string, req <-chan svc.ChangeRequest, status chan<
 			switch c.Cmd {
 			case svc.Interrogate:
 				status <- c.CurrentStatus
+			case svc.SessionChange:
+				select {
+				case sessions <- sessionEventFrom(c):
+				default: // a burst of events; the next one syncs anyway
+				}
 			case svc.Stop, svc.Shutdown:
 				status <- svc.Status{State: svc.StopPending}
 				cancel()
@@ -60,10 +67,10 @@ func (h *handler) Execute(_ []string, req <-chan svc.ChangeRequest, status chan<
 }
 
 // run is the agent's life: enroll if needed, then stay connected until ctx ends (or the PC is removed).
-func run(ctx context.Context, stop context.CancelFunc, version int) {
+func run(ctx context.Context, stop context.CancelFunc, version int, sessions <-chan sessionEvent) {
 	log := eventlog.Open()
 	_ = os.Remove(filepath.Join(paths.InstallDir(), update.NewExeName)) // left by the previous update
-	if err := rdplink.Register(paths.InstalledExe()); err != nil { // the Remote Desktop button's links; not worth failing over
+	if err := rdplink.Register(paths.InstalledExe()); err != nil {      // the Remote Desktop button's links; not worth failing over
 		log.Error("can't register Remote Desktop links: " + err.Error())
 	}
 	st, err := state.Load(paths.StateFile())
@@ -97,6 +104,10 @@ func run(ctx context.Context, stop context.CancelFunc, version int) {
 		Log:       log,
 	}
 	c = client.New(client.Config{Server: st.Server, Token: st.Token, Log: log}, agent, info)
+	trays := startTrays(ctx, st, version, send, log)
+	agent.Events = trays.hub
+	defer trays.stop()
+	go trays.follow(ctx, sessions)
 	log.Info(fmt.Sprintf("HomeAgent v%d started", version))
 	_ = c.Run(ctx)
 	agent.Sampler.Stop()

@@ -25,6 +25,13 @@ type Power interface {
 	Cancel(id string)
 }
 
+// AgentEvents hears about the connection and update answers (the tray hub); optional.
+type AgentEvents interface {
+	Connected(bool)
+	UpdateOffered(version int)
+	UpdateNone(version int)
+}
+
 // Agent turns the server's messages into work (it is the client.Handler).
 type Agent struct {
 	Send      func(protocol.Outgoing) bool
@@ -34,6 +41,7 @@ type Agent struct {
 	Uninstall func() error // removes the service and files (the service keeps running until Stop)
 	Stop      func()       // ends the service
 	Log       client.Logger
+	Events    AgentEvents // nil: nobody listens
 }
 
 var _ client.Handler = (*Agent)(nil)
@@ -42,8 +50,25 @@ func (a *Agent) OnStatsStart(intervalMs int) {
 	a.Sampler.Start(max(time.Duration(intervalMs)*time.Millisecond, minStatsInterval))
 }
 
-func (a *Agent) OnStatsStop()    { a.Sampler.Stop() }
-func (a *Agent) OnDisconnected() { a.Sampler.Stop() }
+func (a *Agent) OnStatsStop() { a.Sampler.Stop() }
+func (a *Agent) OnDisconnected() {
+	a.Sampler.Stop()
+	if a.Events != nil {
+		a.Events.Connected(false)
+	}
+}
+
+func (a *Agent) OnConnected() {
+	if a.Events != nil {
+		a.Events.Connected(true)
+	}
+}
+
+func (a *Agent) OnUpdateNone(u protocol.UpdateNone) {
+	if a.Events != nil {
+		a.Events.UpdateNone(u.Version)
+	}
+}
 
 func (a *Agent) OnPower(p protocol.Power) {
 	a.Log.Info(fmt.Sprintf("%s requested by %s (%d s countdown)", p.Action, p.RequestedBy, p.Seconds))
@@ -64,6 +89,9 @@ func (a *Agent) OnUninstall() {
 
 // OnUpdate downloads and swaps in the offered build in the background; a failure keeps this build running.
 func (a *Agent) OnUpdate(u protocol.Update) {
+	if a.Events != nil {
+		a.Events.UpdateOffered(u.Version)
+	}
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 		defer cancel()

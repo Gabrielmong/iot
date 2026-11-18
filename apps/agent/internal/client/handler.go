@@ -11,6 +11,10 @@ type Handler interface {
 	OnPowerCancel(id string)
 	OnUninstall()
 	OnUpdate(u protocol.Update)
+	// OnUpdateNone answers an update.check: no newer agent is published.
+	OnUpdateNone(u protocol.UpdateNone)
+	// OnConnected: a connection is up and hello was sent.
+	OnConnected()
 	// OnDisconnected: the connection dropped; stop anything that only makes sense while connected (sampling).
 	OnDisconnected()
 }
@@ -35,5 +39,7 @@ func dispatch(h Handler, m protocol.Message) {
 		h.OnUninstall()
 	case protocol.Update:
 		h.OnUpdate(m)
+	case protocol.UpdateNone:
+		h.OnUpdateNone(m)
 	}
 }

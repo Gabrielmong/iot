@@ -136,6 +136,49 @@ describe("agent socket", () => {
     expect(await h.db.agentRemoval.count()).toBe(0);
   });
 
+  describe("update.check", () => {
+    const offerOnly = (a: Agent) => a.got.filter((m) => m.t === "update" || m.t === "update.none");
+
+    it("answers with an offer when a newer agent is published", async () => {
+      h = await ApiHarness.start({ agentDir: agentDir(1010) });
+      await pairedPc();
+      const a = await connect("tok-1");
+      hello(a, { version: 1010 }); // no offer from the hello itself
+      send(a, { t: "update.check", version: 1007 });
+      await vi.waitFor(() => expect(offerOnly(a)).toEqual([{ v: 1, t: "update", version: 1010, url: "/agent/HomeAgent.exe", sha256: "a".repeat(64) }]));
+    });
+
+    it("answers update.none when up to date", async () => {
+      h = await ApiHarness.start({ agentDir: agentDir(1007) });
+      await pairedPc();
+      const a = await connect("tok-1");
+      hello(a);
+      send(a, { t: "update.check", version: 1007 });
+      await vi.waitFor(() => expect(offerOnly(a)).toEqual([{ v: 1, t: "update.none", version: 1007 }]));
+    });
+
+    it("answers update.none with version 0 when nothing is published", async () => {
+      h = await ApiHarness.start();
+      await pairedPc();
+      const a = await connect("tok-1");
+      hello(a);
+      send(a, { t: "update.check", version: 1007 });
+      await vi.waitFor(() => expect(offerOnly(a)).toEqual([{ v: 1, t: "update.none", version: 0 }]));
+    });
+
+    it("ignores a bad version and keeps the socket open", async () => {
+      h = await ApiHarness.start({ agentDir: agentDir(1007) });
+      await pairedPc();
+      const a = await connect("tok-1");
+      hello(a);
+      send(a, { t: "update.check", version: "x" });
+      send(a, { t: "update.check", version: -1 });
+      await new Promise((r) => setTimeout(r, 200));
+      expect(offerOnly(a)).toEqual([]);
+      expect(a.closed).toBe(false);
+    });
+  });
+
   it("ignores unknown messages and keeps the socket open", async () => {
     h = await ApiHarness.start();
     const id = await pairedPc();
