@@ -93,6 +93,11 @@ export class RoutineService {
     this.runner.stopAll();
   }
 
+  /** Resolves once every queued run update (DB write and publish) is done; call after stopAll on shutdown. */
+  async idle(): Promise<void> {
+    while (this.queues.size > 0) await Promise.all(this.queues.values());
+  }
+
   /** Shared routines run with full access; personal ones as their owner (an admin owner has full access through their role). */
   private startSaved(row: { id: string; ownerId: string | null; steps: unknown }, startedBy: string | null): void {
     const runAs: RunAs = row.ownerId ? { userId: row.ownerId } : null;

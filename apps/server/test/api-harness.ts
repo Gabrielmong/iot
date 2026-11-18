@@ -135,6 +135,7 @@ export class ApiHarness {
 
   async stop(): Promise<void> {
     this.routines.stopAll();
+    await this.routines.idle(); // a run's last update must not race the next test's TRUNCATE
     await Promise.all(this.clients.map((c) => c.dispose()));
     await this.server.close();
     await this.manager.stop();

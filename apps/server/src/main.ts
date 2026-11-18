@@ -122,6 +122,7 @@ async function main(): Promise<void> {
     cloud.dispose();
     await go2rtc.stop();
     await manager.stop();
+    await routines.idle();
     await prisma.$disconnect();
   }, log);
 }
