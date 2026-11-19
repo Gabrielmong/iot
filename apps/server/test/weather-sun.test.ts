@@ -27,10 +27,19 @@ describe("isSunUp", () => {
 
 describe("localSunMinutes", () => {
   it("gives sunrise and sunset as local minutes of the day", () => {
-    const day = new Date(2026, 5, 21);
-    const t = sunTimes(new Date(2026, 5, 21, 12), SAN_JOSE);
-    const minute = (d: Date) => d.getHours() * 60 + d.getMinutes();
-    expect(localSunMinutes(day, SAN_JOSE)).toEqual({ sunrise: minute(t.sunrise!), sunset: minute(t.sunset!) });
+    // The scheduler assumes the server runs in the house's timezone; CI runs in UTC, where San José's
+    // sunset falls after midnight. Pin the zone so the test checks the conversion, not the machine.
+    const original = process.env.TZ;
+    process.env.TZ = "America/Costa_Rica";
+    try {
+      const day = new Date(2026, 5, 21);
+      const t = sunTimes(new Date(2026, 5, 21, 12), SAN_JOSE);
+      const minute = (d: Date) => d.getHours() * 60 + d.getMinutes();
+      expect(localSunMinutes(day, SAN_JOSE)).toEqual({ sunrise: minute(t.sunrise!), sunset: minute(t.sunset!) });
+    } finally {
+      if (original === undefined) delete process.env.TZ;
+      else process.env.TZ = original;
+    }
   });
 
   it("is null when the sun doesn't set (polar day)", () => {
