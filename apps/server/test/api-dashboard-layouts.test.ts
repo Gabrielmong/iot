@@ -7,6 +7,7 @@ afterEach(() => h?.stop());
 afterAll(closeDb);
 
 const LAYOUTS = `{ dashboardLayouts { tab isDefault items { deviceId size } } }`;
+const INSTANCES = `{ dashboardLayouts { tab items { deviceId widget widgetId targetId size } } }`;
 const WITH_WIDGETS = `{ dashboardLayouts { tab items { deviceId widget size } } }`;
 const SAVE = `mutation($tab: ID!, $items: [LayoutItemInput!]!, $asDefault: Boolean) {
   saveDashboardLayout(tab: $tab, items: $items, asDefault: $asDefault) { tab isDefault items { deviceId size } }
@@ -133,6 +134,33 @@ describe("dashboard layouts", () => {
       { deviceId: d1, widget: null, size: "S1x1" },
       { deviceId: null, widget: "SUN", size: "S1x1" },
     ]);
+  });
+
+  it("saves a Home layout with widget instances", async () => {
+    h = await ApiHarness.start();
+    const ann = await h.user("Ann");
+    const d1 = await h.device();
+    await h.grant(ann.id, d1);
+    const items = [{ widget: "ROUTINE", widgetId: "w1", targetId: "r1", size: "S1x1" }, item(d1)];
+    await h.ok(ann.token, SAVE, { tab: "home", items });
+    const got = (await h.ok(ann.token, INSTANCES)).dashboardLayouts;
+    expect(got).toEqual([
+      {
+        tab: "home",
+        items: [
+          { deviceId: null, widget: "ROUTINE", widgetId: "w1", targetId: "r1", size: "S1x1" },
+          { deviceId: d1, widget: null, widgetId: null, targetId: null, size: "S1x1" },
+        ],
+      },
+    ]);
+  });
+
+  it("reads a widget saved before instances with its kind as id", async () => {
+    h = await ApiHarness.start();
+    const ann = await h.user("Ann");
+    await h.db.userDashboardLayout.create({ data: { userId: ann.id, tab: "all", items: [{ widget: "WEATHER", size: "W2x1" }] } });
+    const got = (await h.ok(ann.token, INSTANCES)).dashboardLayouts[0].items;
+    expect(got).toEqual([{ deviceId: null, widget: "WEATHER", widgetId: "WEATHER", targetId: null, size: "W2x1" }]);
   });
 });
 

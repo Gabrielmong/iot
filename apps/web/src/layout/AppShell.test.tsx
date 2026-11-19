@@ -44,7 +44,7 @@ describe('AppShell on desktop', () => {
     renderShell('USER')
     expect(await screen.findByText('The Cabin')).toBeInTheDocument()
     const nav = screen.getByRole('navigation', { name: 'Main' })
-    expect(within(nav).getByRole('link', { name: 'Dashboard' })).toHaveAttribute('aria-current', 'page')
+    expect(within(nav).getByRole('link', { name: 'Home' })).toHaveAttribute('aria-current', 'page')
     expect(within(nav).getByRole('link', { name: 'Cameras' })).toHaveAttribute('href', '/cameras')
     expect(within(nav).getByRole('link', { name: 'Routines' })).toHaveAttribute('href', '/routines')
     expect(within(nav).queryByRole('link', { name: 'Devices' })).not.toBeInTheDocument()
@@ -56,7 +56,7 @@ describe('AppShell on desktop', () => {
     expect(screen.getByText('dashboard page')).toBeInTheDocument()
   })
 
-  it('lists the rooms under Dashboard and marks the current one', async () => {
+  it('lists the rooms under All devices and marks the current one', async () => {
     renderShell('USER', '/rooms/r1')
     const rooms = within(await screen.findByRole('list', { name: 'Rooms' }))
     expect(rooms.getAllByRole('link').map((l) => [l.textContent, l.getAttribute('href')])).toEqual([
@@ -64,7 +64,7 @@ describe('AppShell on desktop', () => {
       ['Living room', '/rooms/r1'],
     ])
     expect(rooms.getByRole('link', { name: 'Living room' })).toHaveAttribute('aria-current', 'page')
-    expect(screen.getByRole('link', { name: 'Dashboard' })).not.toHaveAttribute('aria-current')
+    expect(screen.getByRole('link', { name: 'All devices' })).not.toHaveAttribute('aria-current')
     fireEvent.click(screen.getByRole('button', { name: 'Collapse menu' }))
     expect(screen.queryByRole('list', { name: 'Rooms' })).not.toBeInTheDocument()
   })

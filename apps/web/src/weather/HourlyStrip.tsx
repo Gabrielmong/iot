@@ -13,13 +13,13 @@ export function HourlyStrip({ hourly, limit, vertical = false }: Props) {
     <Box
       component="ul"
       aria-label="Next hours"
-      sx={{ display: 'flex', flexDirection: vertical ? 'column' : 'row', gap: vertical ? 0.5 : 2, overflowX: vertical ? 'hidden' : 'auto', listStyle: 'none', p: 0, m: 0, pb: 0.5 }}
+      sx={{ display: 'flex', flexDirection: vertical ? 'column' : 'row', gap: vertical ? 0.5 : 1, justifyContent: vertical ? undefined : 'space-between', overflowX: vertical ? 'hidden' : 'auto', listStyle: 'none', p: 0, m: 0, pb: 0.5 }}
     >
       {hours.map((h) => (
         <Box
           component="li"
           key={h.time}
-          sx={vertical ? { display: 'grid', gridTemplateColumns: '1fr auto 2.5rem', alignItems: 'center', gap: 1 } : { display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 48, gap: 0.5 }}
+          sx={vertical ? { display: 'grid', gridTemplateColumns: '1fr auto 2.5rem', alignItems: 'center', gap: 1 } : { display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 44, gap: 0.5 }}
         >
           <Typography variant="caption" color="text.secondary">{formatHour(h.time)}</Typography>
           <WeatherIcon condition={h.condition} fontSize="small" />

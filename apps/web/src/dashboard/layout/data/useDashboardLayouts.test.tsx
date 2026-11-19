@@ -29,6 +29,19 @@ describe('useDashboardLayouts', () => {
     expect(result.current.layoutFor('room-1')).toBeUndefined()
   })
 
+  it('reads widget instances, leaving out a null target', async () => {
+    const items = [
+      { __typename: 'LayoutItem', deviceId: null, widget: 'WEATHER', widgetId: 'WEATHER', targetId: null, size: 'W2x1' },
+      { __typename: 'LayoutItem', deviceId: null, widget: 'ROUTINE', widgetId: 'w1', targetId: 'r1', size: 'S1x1' },
+    ]
+    const { result } = setup({ DashboardLayouts: () => of({ data: { dashboardLayouts: [{ ...layout('home'), items }] } }) })
+    await waitFor(() => expect(result.current.layoutFor('home')).toBeDefined())
+    expect(result.current.layoutFor('home')?.entries).toEqual([
+      { widget: 'WEATHER', widgetId: 'WEATHER', size: 'W2x1' },
+      { widget: 'ROUTINE', widgetId: 'w1', targetId: 'r1', size: 'S1x1' },
+    ])
+  })
+
   it('saves a tab and resolves true', async () => {
     const sent: unknown[] = []
     const { result } = setup({

@@ -34,14 +34,30 @@ describe('reconcileLayout', () => {
   it('keeps widget entries where they are stored, whatever the devices', () => {
     const entries: LayoutEntry[] = [
       { deviceId: 'a', size: 'S1x1' },
-      { widget: 'WEATHER', size: 'W2x1' },
+      { widget: 'WEATHER', widgetId: 'WEATHER', size: 'W2x1' },
     ]
     expect(view(reconcileLayout(entries, [b, a]))).toEqual(['a:S1x1', 'widget:WEATHER:W2x1', 'b:S1x1'])
-    expect(view(reconcileLayout([{ widget: 'SUN', size: 'S1x1' }], []))).toEqual(['widget:SUN:S1x1'])
+    expect(view(reconcileLayout([{ widget: 'SUN', widgetId: 'SUN', size: 'S1x1' }], []))).toEqual(['widget:SUN:S1x1'])
+  })
+
+  it('leaves unplaced devices out when not appending (Home)', () => {
+    expect(view(reconcileLayout([{ deviceId: 'b', size: 'W2x1' }], [a, b, c], [], { appendUnplaced: false }))).toEqual(['b:W2x1'])
+    expect(view(reconcileLayout(undefined, [a, b], [], { appendUnplaced: false }))).toEqual([])
+  })
+
+  it('keeps two widgets of one kind apart by their ids', () => {
+    const entries: LayoutEntry[] = [
+      { widget: 'ROUTINE', widgetId: 'w1', targetId: 'r1', size: 'S1x1' },
+      { widget: 'ROUTINE', widgetId: 'w2', targetId: 'r2', size: 'S1x1' },
+    ]
+    expect(reconcileLayout(entries, [])).toEqual([
+      { key: 'widget:w1', widget: 'ROUTINE', widgetId: 'w1', targetId: 'r1', size: 'S1x1' },
+      { key: 'widget:w2', widget: 'ROUTINE', widgetId: 'w2', targetId: 'r2', size: 'S1x1' },
+    ])
   })
 
   it('applies the defaults only when nothing is stored', () => {
-    const defaults: LayoutEntry[] = [{ widget: 'WEATHER', size: 'W2x1' }]
+    const defaults: LayoutEntry[] = [{ widget: 'WEATHER', widgetId: 'WEATHER', size: 'W2x1' }]
     expect(view(reconcileLayout(undefined, [a], defaults))).toEqual(['widget:WEATHER:W2x1', 'a:S1x1'])
     expect(view(reconcileLayout([], [a], defaults))).toEqual(['a:S1x1'])
   })
@@ -50,6 +66,6 @@ describe('reconcileLayout', () => {
 describe('entryKey', () => {
   it('is the device id, or widget: and the kind', () => {
     expect(entryKey({ deviceId: 'a', size: 'S1x1' })).toBe('a')
-    expect(entryKey({ widget: 'SUN', size: 'S1x1' })).toBe('widget:SUN')
+    expect(entryKey({ widget: 'SUN', widgetId: 'SUN', size: 'S1x1' })).toBe('widget:SUN')
   })
 })

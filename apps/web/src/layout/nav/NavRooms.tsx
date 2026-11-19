@@ -9,7 +9,7 @@ import { roomSummaries } from '../../dashboard/lib/roomSummaries'
 import { ALL_TAB } from '../../dashboard/lib/roomTabs'
 import { palette } from '../../theme/tokens'
 
-/** Desktop: the rooms with something to show, indented under Dashboard (which itself shows all devices). */
+/** Desktop: the rooms with something to show, indented under All devices. */
 export function NavRooms() {
   const { pathname } = useLocation()
   const { devices } = useDevices()

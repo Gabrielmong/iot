@@ -11,12 +11,14 @@ type Props = {
   onCancel: () => void
   onSave: (asDefault: boolean) => void
   onReset: () => void
+  /** The idle button's label ("Arrange" unless given). */
+  startLabel?: string
 }
 
 const swap = { initial: { opacity: 0, y: -4 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.18 } }
 
-/** "Arrange" when idle; while arranging, Cancel, Reset to default and the save button(s). */
-export function ArrangeBar({ arranging, isAdmin, canReset, busy, onStart, onCancel, onSave, onReset }: Props) {
+/** "Arrange" (or `startLabel`) when idle; while arranging, Cancel, Reset to default and the save button(s). */
+export function ArrangeBar({ arranging, isAdmin, canReset, busy, onStart, onCancel, onSave, onReset, startLabel = 'Arrange' }: Props) {
   return (
     <>
       {arranging ? (
@@ -47,7 +49,7 @@ export function ArrangeBar({ arranging, isAdmin, canReset, busy, onStart, onCanc
       ) : (
         <Box key="idle" component={motion.div} {...swap}>
           <Button variant="outlined" onClick={onStart}>
-            Arrange
+            {startLabel}
           </Button>
         </Box>
       )}

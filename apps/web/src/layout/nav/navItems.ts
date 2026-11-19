@@ -3,6 +3,8 @@ import DevicesOtherOutlinedIcon from '@mui/icons-material/DevicesOtherOutlined'
 import ExtensionOutlinedIcon from '@mui/icons-material/ExtensionOutlined'
 import GridViewOutlinedIcon from '@mui/icons-material/GridViewOutlined'
 import GroupOutlinedIcon from '@mui/icons-material/GroupOutlined'
+import HomeOutlinedIcon from '@mui/icons-material/HomeOutlined'
+import MeetingRoomOutlinedIcon from '@mui/icons-material/MeetingRoomOutlined'
 import PlaylistPlayOutlinedIcon from '@mui/icons-material/PlaylistPlayOutlined'
 import RocketLaunchOutlinedIcon from '@mui/icons-material/RocketLaunchOutlined'
 import TuneOutlinedIcon from '@mui/icons-material/TuneOutlined'
@@ -20,10 +22,14 @@ export type NavLink = {
   exact?: boolean
   /** Not shown to guests. */
   hideForGuests?: boolean
+  /** Only in the phone menu (the computer's side menu lists the rooms under All devices instead). */
+  phoneOnly?: boolean
 }
 
 export const MAIN_LINKS: readonly NavLink[] = [
-  { to: '/', label: 'Dashboard', Icon: GridViewOutlinedIcon, exact: true, alsoActive: ['/devices/'] },
+  { to: '/', label: 'Home', Icon: HomeOutlinedIcon, exact: true },
+  { to: '/all', label: 'All devices', Icon: GridViewOutlinedIcon, alsoActive: ['/devices/'] },
+  { to: '/rooms', label: 'Rooms', Icon: MeetingRoomOutlinedIcon, phoneOnly: true },
   { to: '/weather', label: 'Weather', Icon: WbSunnyOutlinedIcon },
   { to: '/cameras', label: 'Cameras', Icon: VideocamOutlinedIcon, hideForGuests: true },
   { to: '/routines', label: 'Routines', Icon: PlaylistPlayOutlinedIcon },

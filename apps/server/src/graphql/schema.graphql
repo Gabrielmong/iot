@@ -46,10 +46,10 @@ type SyncResult { matched: Int!  unmatched: [String!]!  found: [String!]! } # fo
 input StatePatchInput { on: Boolean  brightness: Int  color: RgbInput  colorTempK: Int }
 input RgbInput { r: Int!  g: Int!  b: Int! }
 enum TileSize { S1x1 W2x1 T1x2 L2x2 }
-enum WidgetKind { WEATHER SUN }
-type LayoutItem { deviceId: ID  widget: WidgetKind  size: TileSize! } # exactly one of deviceId and widget
-input LayoutItemInput { deviceId: ID  widget: WidgetKind  size: TileSize! }
-type DashboardLayout { tab: ID!  items: [LayoutItem!]!  isDefault: Boolean! } # tab: "all" or a room id
+enum WidgetKind { WEATHER SUN ROUTINE CAMERA ROOM CLOCK RAIN_SOON MOON OFFLINE }
+type LayoutItem { deviceId: ID  widget: WidgetKind  widgetId: ID  targetId: ID  size: TileSize! } # exactly one of deviceId and widget; widgets have a widgetId (instance) and, for ROUTINE / CAMERA / ROOM, a targetId
+input LayoutItemInput { deviceId: ID  widget: WidgetKind  widgetId: ID  targetId: ID  size: TileSize! }
+type DashboardLayout { tab: ID!  items: [LayoutItem!]!  isDefault: Boolean! } # tab: "home", "all" or a room id
 enum RoutineScope { PERSONAL SHARED }
 enum StepKind { SET WAIT ROUTINE CONTINUE_IF IF }
 enum ConditionMetric { TEMP_C FEELS_LIKE_C HUMIDITY WIND_KPH RAINING_NOW RAIN_CHANCE_TODAY SUN }

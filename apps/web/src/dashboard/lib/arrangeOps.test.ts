@@ -1,5 +1,5 @@
 import { deviceFixture } from '../../test/deviceFixtures'
-import { addWidget, moveEntry, moveEntryBy, removeWidget, resizeEntry, toEntries } from './arrangeOps'
+import { addWidget, moveEntry, moveEntryBy, removeEntry, resizeEntry, toEntries } from './arrangeOps'
 import { entryKey, type LayoutEntry } from './reconcileLayout'
 
 const list: LayoutEntry[] = [
@@ -7,7 +7,7 @@ const list: LayoutEntry[] = [
   { deviceId: 'b', size: 'S1x1' },
   { deviceId: 'c', size: 'L2x2' },
 ]
-const withWidget: LayoutEntry[] = [...list, { widget: 'WEATHER', size: 'W2x1' }]
+const withWidget: LayoutEntry[] = [...list, { widget: 'WEATHER', widgetId: 'WEATHER', size: 'W2x1' }]
 const ids = (l: LayoutEntry[]) => l.map(entryKey)
 
 describe('moveEntry', () => {
@@ -32,14 +32,14 @@ describe('resizeEntry', () => {
   })
 
   it('resizes a widget by its key', () => {
-    expect(resizeEntry(withWidget, 'widget:WEATHER', 'L2x2')[3]).toEqual({ widget: 'WEATHER', size: 'L2x2' })
+    expect(resizeEntry(withWidget, 'widget:WEATHER', 'L2x2')[3]).toEqual({ widget: 'WEATHER', widgetId: 'WEATHER', size: 'L2x2' })
   })
 })
 
 describe('toEntries', () => {
   it('turns arranged tiles into entries', () => {
     expect(toEntries([{ key: 'z', device: deviceFixture({ id: 'z' }), size: 'W2x1' }])).toEqual([{ deviceId: 'z', size: 'W2x1' }])
-    expect(toEntries([{ key: 'widget:SUN', widget: 'SUN', size: 'S1x1' }])).toEqual([{ widget: 'SUN', size: 'S1x1' }])
+    expect(toEntries([{ key: 'widget:SUN', widget: 'SUN', widgetId: 'SUN', size: 'S1x1' }])).toEqual([{ widget: 'SUN', widgetId: 'SUN', size: 'S1x1' }])
   })
 })
 
@@ -58,19 +58,22 @@ describe('moveEntryBy', () => {
 })
 
 describe('addWidget', () => {
-  it('puts the widget first: weather wide, sun small', () => {
-    expect(addWidget(list, 'WEATHER')[0]).toEqual({ widget: 'WEATHER', size: 'W2x1' })
-    expect(addWidget(list, 'SUN')[0]).toEqual({ widget: 'SUN', size: 'S1x1' })
+  it('puts a new widget instance first at its starting size', () => {
+    expect(addWidget(list, 'WEATHER', undefined, () => 'w1')[0]).toEqual({ widget: 'WEATHER', widgetId: 'w1', size: 'W2x1' })
+    expect(addWidget(list, 'SUN', undefined, () => 'w2')[0]).toEqual({ widget: 'SUN', widgetId: 'w2', size: 'S1x1' })
   })
 
-  it('refuses a kind the tab already has', () => {
-    expect(addWidget(withWidget, 'WEATHER')).toBe(withWidget)
+  it('adds a targeted widget with its target, and allows several of one kind', () => {
+    const once = addWidget(list, 'ROUTINE', 'r1', () => 'w1')
+    expect(once[0]).toEqual({ widget: 'ROUTINE', widgetId: 'w1', targetId: 'r1', size: 'S1x1' })
+    expect(ids(addWidget(once, 'ROUTINE', 'r2', () => 'w2')).slice(0, 2)).toEqual(['widget:w2', 'widget:w1'])
   })
 })
 
-describe('removeWidget', () => {
-  it('drops only that widget', () => {
-    expect(removeWidget(withWidget, 'WEATHER')).toEqual(list)
-    expect(removeWidget(list, 'SUN')).toEqual(list)
+describe('removeEntry', () => {
+  it('drops only the entry with that key', () => {
+    expect(removeEntry(withWidget, 'widget:WEATHER')).toEqual(list)
+    expect(removeEntry(list, 'b')).toEqual([list[0], list[2]])
+    expect(removeEntry(list, 'x')).toEqual(list)
   })
 })

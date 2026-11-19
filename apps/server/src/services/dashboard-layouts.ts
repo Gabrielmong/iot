@@ -1,9 +1,10 @@
 import { badInput } from "../api-errors.js";
 import type { PrismaClient, User } from "../generated/prisma/client.js";
 import { visibleDevices } from "./device-rows.js";
-import { validateLayoutItems, type LayoutItem } from "./layout-items.js";
+import { toWidgetItem, validateLayoutItems, type LayoutItem } from "./layout-items.js";
 
 export const ALL_TAB = "all";
+export const HOME_TAB = "home";
 
 /** A tab's arrangement as the caller sees it: their own, or the admin default (`isDefault`). */
 export type ApiLayout = { tab: string; items: LayoutItem[]; isDefault: boolean };
@@ -14,11 +15,15 @@ async function visibleIds(prisma: PrismaClient, user: Caller): Promise<Set<strin
   return new Set((await visibleDevices(prisma, user)).map((d) => d.id));
 }
 
-/** Widgets are for everyone; devices only when the user can see them. */
+/** Widgets are for everyone (the app hides ones whose target the viewer can't see); devices only when the user can see them. */
 const onlyVisible = (items: LayoutItem[], ids: Set<string>) => items.filter((i) => i.deviceId === undefined || ids.has(i.deviceId));
 
+/** Stored items as API items: widgets saved before instances get their kind as id. */
+const fromStored = (items: unknown): LayoutItem[] =>
+  (items as LayoutItem[]).map((i) => (i.widget !== undefined ? toWidgetItem(i.widget, i.widgetId, i.targetId, i.size) : i));
+
 async function requireTab(prisma: PrismaClient, tab: string): Promise<void> {
-  if (tab === ALL_TAB) return;
+  if (tab === ALL_TAB || tab === HOME_TAB) return;
   if (!(await prisma.room.findUnique({ where: { id: tab } }))) throw badInput("Unknown tab");
 }
 
@@ -30,8 +35,8 @@ export async function effectiveLayouts(prisma: PrismaClient, user: Caller): Prom
     visibleIds(prisma, user),
   ]);
   const byTab = new Map<string, ApiLayout>();
-  for (const d of defaults) byTab.set(d.tab, { tab: d.tab, items: d.items as LayoutItem[], isDefault: true });
-  for (const o of own) byTab.set(o.tab, { tab: o.tab, items: o.items as LayoutItem[], isDefault: false });
+  for (const d of defaults) byTab.set(d.tab, { tab: d.tab, items: fromStored(d.items), isDefault: true });
+  for (const o of own) byTab.set(o.tab, { tab: o.tab, items: fromStored(o.items), isDefault: false });
   return [...byTab.values()].map((l) => ({ ...l, items: onlyVisible(l.items, ids) })).sort((a, b) => a.tab.localeCompare(b.tab));
 }
 
@@ -60,7 +65,7 @@ export async function resetLayout(prisma: PrismaClient, user: Caller, tab: strin
   await prisma.userDashboardLayout.deleteMany({ where: { userId: user.id, tab } });
   const fallback = await prisma.defaultDashboardLayout.findUnique({ where: { tab } });
   if (!fallback) return null;
-  return { tab, items: onlyVisible(fallback.items as LayoutItem[], await visibleIds(prisma, user)), isDefault: true };
+  return { tab, items: onlyVisible(fromStored(fallback.items), await visibleIds(prisma, user)), isDefault: true };
 }
 
 /** Removes every arrangement of a tab (used when its room is deleted). */

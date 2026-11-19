@@ -13,22 +13,23 @@ import {
 import { SortableContext } from '@dnd-kit/sortable'
 import Box from '@mui/material/Box'
 import { useRef, useState } from 'react'
-import type { Weather } from '../../weather/data/useWeather'
 import { isNewDragTarget } from '../lib/dragTarget'
 import { gridSx } from '../lib/gridSx'
 import type { ArrangedTile } from '../lib/reconcileLayout'
 import type { TileSize } from '../lib/tileSize'
-import type { WidgetKind } from '../widgets/widgetKinds'
+import type { WidgetData } from '../widgets/useWidgetData'
 import { LiftedCard } from './LiftedCard'
 import { SortableTile } from './SortableTile'
 
 type Props = {
   tiles: readonly ArrangedTile[]
-  weather: Weather | undefined
+  data: WidgetData
   onMove: (activeKey: string, overKey: string) => void
   onMoveBy: (key: string, delta: number) => void
   onResize: (key: string, size: TileSize) => void
-  onRemoveWidget: (kind: WidgetKind) => void
+  onRemove: (key: string) => void
+  /** Devices get a remove × too (Home). */
+  devicesRemovable?: boolean
 }
 
 /** The card under the pointer, else the nearest one: works for cards of different sizes. */
@@ -44,7 +45,7 @@ const noTransforms = () => null
  * The grid in arrange mode. Mouse drags start after 6 px; touch needs a 200 ms hold so the page still
  * scrolls. The dragged card follows the pointer in an overlay while the others slide into place.
  */
-export function ArrangeGrid({ tiles, weather, onMove, onMoveBy, onResize, onRemoveWidget }: Props) {
+export function ArrangeGrid({ tiles, data, onMove, onMoveBy, onResize, onRemove, devicesRemovable }: Props) {
   const [activeId, setActiveId] = useState<string | null>(null)
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
@@ -74,11 +75,11 @@ export function ArrangeGrid({ tiles, weather, onMove, onMoveBy, onResize, onRemo
       <SortableContext items={tiles.map((t) => t.key)} strategy={noTransforms}>
         <Box sx={gridSx}>
           {tiles.map((tile) => (
-            <SortableTile key={tile.key} tile={tile} weather={weather} onMoveBy={onMoveBy} onResize={onResize} onRemoveWidget={onRemoveWidget} />
+            <SortableTile key={tile.key} tile={tile} data={data} onMoveBy={onMoveBy} onResize={onResize} onRemove={onRemove} devicesRemovable={devicesRemovable} />
           ))}
         </Box>
       </SortableContext>
-      <DragOverlay>{active ? <LiftedCard tile={active} weather={weather} /> : null}</DragOverlay>
+      <DragOverlay>{active ? <LiftedCard tile={active} data={data} /> : null}</DragOverlay>
     </DndContext>
   )
 }

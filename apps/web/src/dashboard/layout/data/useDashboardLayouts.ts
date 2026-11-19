@@ -9,20 +9,21 @@ export type TabLayout = { entries: LayoutEntry[]; isDefault: boolean }
 /** A stored item as an entry: a device or a widget (an item with neither is skipped). */
 type StoredItem = DashboardLayoutsQuery['dashboardLayouts'][number]['items'][number]
 
-function toEntry({ deviceId, widget, size }: StoredItem): LayoutEntry[] {
+function toEntry({ deviceId, widget, widgetId, targetId, size }: StoredItem): LayoutEntry[] {
   if (deviceId) return [{ deviceId, size }]
-  return widget ? [{ widget, size }] : []
+  if (!widget) return []
+  return [{ widget, widgetId: widgetId ?? widget, ...(targetId ? { targetId } : {}), size }]
 }
 
 /** Resolve only once the refreshed layouts are in the cache, so leaving arrange mode never flashes the old one. */
 const refetch = { refetchQueries: [DASHBOARD_LAYOUTS], awaitRefetchQueries: true }
 
 /**
- * The caller's arrangement per tab (own or the admin default), plus save and reset. Save and reset
+ * The caller's arrangement per tab (own or the admin default), whether it has loaded or failed, plus save and reset. Save and reset
  * resolve false instead of throwing, so the caller can keep the user's edits and show an error.
  */
 export function useDashboardLayouts() {
-  const { data } = useQuery(DASHBOARD_LAYOUTS, { fetchPolicy: 'cache-and-network' })
+  const { data, error } = useQuery(DASHBOARD_LAYOUTS, { fetchPolicy: 'cache-and-network' })
   const [saveMutation] = useMutation(SAVE_DASHBOARD_LAYOUT, refetch)
   const [resetMutation] = useMutation(RESET_DASHBOARD_LAYOUT, refetch)
   const layouts = data?.dashboardLayouts
@@ -54,5 +55,5 @@ export function useDashboardLayouts() {
     [resetMutation],
   )
 
-  return { layoutFor, save, reset }
+  return { layoutFor, save, reset, loaded: data !== undefined, failed: Boolean(error) && data === undefined }
 }

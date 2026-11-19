@@ -231,8 +231,8 @@ describe('Arrange mode', () => {
 })
 
 const weatherIs = (weather: unknown) => ({ Weather: reply({ weather }) })
-const lampItem = { __typename: 'LayoutItem', deviceId: 'lamp', widget: null, size: 'S1x1' }
-const weatherItem = { __typename: 'LayoutItem', deviceId: null, widget: 'WEATHER', size: 'W2x1' }
+const lampItem = { __typename: 'LayoutItem', deviceId: 'lamp', widget: null, widgetId: null, targetId: null, size: 'S1x1' }
+const weatherItem = { __typename: 'LayoutItem', deviceId: null, widget: 'WEATHER', widgetId: 'WEATHER', targetId: null, size: 'W2x1' }
 const firstSave = (calls: unknown[]) => (calls[0] as { items: unknown[] }).items
 
 describe('Arrange mode widgets', () => {
@@ -245,18 +245,30 @@ describe('Arrange mode widgets', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Done' }))
     await waitFor(() => expect(calls.save).toHaveLength(1))
     expect(firstSave(calls.save)).toEqual([
-      { widget: 'WEATHER', size: 'W2x1' },
+      { widget: 'WEATHER', widgetId: expect.any(String), size: 'W2x1' },
       { deviceId: 'lamp', size: 'S1x1' },
       { deviceId: 'kettle', size: 'S1x1' },
     ])
   })
 
-  it('offers only the widgets the tab does not have', async () => {
+  it('offers a kind again even when the tab has one (widgets are instances)', async () => {
     setup({ items: [weatherItem], extra: weatherIs(weatherFixture()) })
     await startArranging()
     fireEvent.click(screen.getByRole('button', { name: 'Add widget' }))
-    expect(await screen.findByRole('menuitem', { name: 'Sun' })).toBeInTheDocument()
-    expect(screen.queryByRole('menuitem', { name: 'Weather' })).not.toBeInTheDocument()
+    expect(await screen.findByRole('menuitem', { name: 'Weather' })).toBeInTheDocument()
+  })
+
+  it('hides a routine widget whose routine is gone, shows it as not available while arranging, and keeps it on save', async () => {
+    const routineItem = { __typename: 'LayoutItem', deviceId: null, widget: 'ROUTINE', widgetId: 'w-rt', targetId: 'gone', size: 'S1x1' }
+    const { calls } = setup({ items: [routineItem, lampItem] })
+    expect(await screen.findByRole('button', { name: 'Desk lamp' })).toBeInTheDocument()
+    expect(screen.queryByText('Not available')).not.toBeInTheDocument()
+    await startArranging()
+    expect(screen.getByRole('button', { name: 'Move Routine button widget' })).toBeInTheDocument()
+    expect(screen.getByText('Not available')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }))
+    await waitFor(() => expect(calls.save).toHaveLength(1))
+    expect(firstSave(calls.save)).toContainEqual({ widget: 'ROUTINE', widgetId: 'w-rt', targetId: 'gone', size: 'S1x1' })
   })
 
   it('removes a widget, and the save leaves it out', async () => {
@@ -280,7 +292,7 @@ describe('Arrange mode widgets', () => {
     expect(screen.getByRole('button', { name: 'Move Weather widget' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Done' }))
     await waitFor(() => expect(calls.save).toHaveLength(1))
-    expect(firstSave(calls.save)).toContainEqual({ widget: 'WEATHER', size: 'W2x1' })
+    expect(firstSave(calls.save)).toContainEqual({ widget: 'WEATHER', widgetId: 'WEATHER', size: 'W2x1' })
   })
 
   it('shows the weather widget first on All when nothing is saved and weather works', async () => {

@@ -1,4 +1,5 @@
 import { WIDGET_START_SIZE, type WidgetKind } from '../widgets/widgetKinds'
+import { newWidgetId } from './newWidgetId'
 import { type ArrangedTile, entryKey, type LayoutEntry } from './reconcileLayout'
 import type { TileSize } from './tileSize'
 
@@ -22,7 +23,11 @@ export function resizeEntry(list: LayoutEntry[], key: string, size: TileSize): L
 
 /** The entries an arrangement of tiles stores. */
 export function toEntries(tiles: readonly ArrangedTile[]): LayoutEntry[] {
-  return tiles.map((t) => ('widget' in t ? { widget: t.widget, size: t.size } : { deviceId: t.device.id, size: t.size }))
+  return tiles.map((t) =>
+    'widget' in t
+      ? { widget: t.widget, widgetId: t.widgetId, ...(t.targetId !== undefined ? { targetId: t.targetId } : {}), size: t.size }
+      : { deviceId: t.device.id, size: t.size },
+  )
 }
 
 /** Moves an entry one or more places along the list (keyboard arranging); stays put past the ends. */
@@ -33,13 +38,18 @@ export function moveEntryBy(list: LayoutEntry[], key: string, delta: number): La
   return moveEntry(list, key, entryKey(list[to]))
 }
 
-/** Puts a widget first, at its starting size; a tab holds each kind at most once. */
-export function addWidget(list: LayoutEntry[], kind: WidgetKind): LayoutEntry[] {
-  if (list.some((e) => 'widget' in e && e.widget === kind)) return list
-  return [{ widget: kind, size: WIDGET_START_SIZE[kind] }, ...list]
+/** Puts a new widget instance first, at its starting size, with its target when it has one. */
+export function addWidget(list: LayoutEntry[], kind: WidgetKind, targetId?: string, newId: () => string = newWidgetId): LayoutEntry[] {
+  return [{ widget: kind, widgetId: newId(), ...(targetId !== undefined ? { targetId } : {}), size: WIDGET_START_SIZE[kind] }, ...list]
 }
 
-/** Takes a widget off the tab. */
-export function removeWidget(list: LayoutEntry[], kind: WidgetKind): LayoutEntry[] {
-  return list.filter((e) => !('widget' in e && e.widget === kind))
+/** Puts a device last at 1x1 (adding it to Home); a device already there stays where it is. */
+export function addDevice(list: LayoutEntry[], deviceId: string): LayoutEntry[] {
+  if (list.some((e) => 'deviceId' in e && e.deviceId === deviceId)) return list
+  return [...list, { deviceId, size: 'S1x1' }]
+}
+
+/** Takes one card (device or widget) off the tab. */
+export function removeEntry(list: LayoutEntry[], key: string): LayoutEntry[] {
+  return list.filter((e) => entryKey(e) !== key)
 }

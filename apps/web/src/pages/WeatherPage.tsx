@@ -13,8 +13,8 @@ export function WeatherPage() {
   const { user } = useCurrentUser()
   return (
     <PageTransition>
-      <Stack spacing={2} sx={{ maxWidth: 720 }}>
-        <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
+      <Stack spacing={2} sx={{ p: { xs: 1.5, sm: 2, md: 3 }, maxWidth: 1200, mx: 'auto' }}>
+        <Typography variant="h5" component="h1">
           Weather
         </Typography>
         {!weather && loading && <CircularProgress aria-label="Loading the weather" />}

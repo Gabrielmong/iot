@@ -1,10 +1,10 @@
 import Box from '@mui/material/Box'
-import type { Weather } from '../../weather/data/useWeather'
+import type { WidgetData } from '../widgets/useWidgetData'
 import type { ArrangedTile } from '../lib/reconcileLayout'
 import { TileFace } from './TileFace'
 
 /** The card being dragged, lifted above the grid. A decorative copy of the tile. */
-export function LiftedCard({ tile, weather }: { tile: ArrangedTile; weather: Weather | undefined }) {
+export function LiftedCard({ tile, data }: { tile: ArrangedTile; data: WidgetData }) {
   return (
     <Box
       inert
@@ -17,7 +17,7 @@ export function LiftedCard({ tile, weather }: { tile: ArrangedTile; weather: Wea
         cursor: 'grabbing',
       }}
     >
-      <TileFace tile={tile} weather={weather} />
+      <TileFace tile={tile} data={data} />
     </Box>
   )
 }

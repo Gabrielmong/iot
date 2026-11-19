@@ -3,28 +3,29 @@ import Box from '@mui/material/Box'
 import { motion } from 'framer-motion'
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
 import { settle } from '../../motion/tokens'
-import type { Weather } from '../../weather/data/useWeather'
 import type { ArrangedTile } from '../lib/reconcileLayout'
 import { tileSpan, type TileSize } from '../lib/tileSize'
-import type { WidgetKind } from '../widgets/widgetKinds'
-import { RemoveWidgetButton } from './RemoveWidgetButton'
+import { RemoveTileButton } from './RemoveTileButton'
 import { SizePicker } from './SizePicker'
+import type { WidgetData } from '../widgets/useWidgetData'
 import { TileFace, tileName } from './TileFace'
 
 type Props = {
   tile: ArrangedTile
-  weather: Weather | undefined
+  data: WidgetData
   onMoveBy: (key: string, delta: number) => void
   onResize: (key: string, size: TileSize) => void
-  onRemoveWidget: (kind: WidgetKind) => void
+  onRemove: (key: string) => void
+  /** Devices can be taken off this tab (Home); widgets always can. */
+  devicesRemovable?: boolean
 }
 const STEP: Record<string, number> = { ArrowLeft: -1, ArrowUp: -1, ArrowRight: 1, ArrowDown: 1 }
 
 /**
  * A card in arrange mode: the real tile, made inert so it can't be switched, under a drag handle that
- * covers it; a widget also gets a remove ×. Keyboard: Space/Enter picks the card up, arrows move it along the list, Space/Enter/Escape drop it.
+ * covers it; a widget (and, on Home, a device) also gets a remove ×. Keyboard: Space/Enter picks the card up, arrows move it along the list, Space/Enter/Escape drop it.
  */
-export function SortableTile({ tile, weather, onMoveBy, onResize, onRemoveWidget }: Props) {
+export function SortableTile({ tile, data, onMoveBy, onResize, onRemove, devicesRemovable = false }: Props) {
   const { key, size } = tile
   const name = tileName(tile)
   const { attributes, listeners, setNodeRef, isDragging } = useSortable({ id: key })
@@ -64,7 +65,7 @@ export function SortableTile({ tile, weather, onMoveBy, onResize, onRemoveWidget
       sx={{ position: 'relative', minWidth: 0, opacity: isDragging ? 0.35 : 1 }}
     >
       <Box inert sx={{ height: '100%' }}>
-        <TileFace tile={tile} weather={weather} />
+        <TileFace tile={tile} data={data} />
       </Box>
       <Box
         {...attributes}
@@ -97,7 +98,11 @@ export function SortableTile({ tile, weather, onMoveBy, onResize, onRemoveWidget
       <Box sx={{ position: 'absolute', left: 8, bottom: 8, zIndex: 1 }}>
         <SizePicker deviceName={name} value={size} onChange={(next) => onResize(key, next)} />
       </Box>
-      {'widget' in tile && <RemoveWidgetButton name={name} onRemove={() => onRemoveWidget(tile.widget)} />}
+      {'widget' in tile ? (
+        <RemoveTileButton label={`Remove ${name}`} onRemove={() => onRemove(key)} />
+      ) : (
+        devicesRemovable && <RemoveTileButton label={`Remove ${name} from Home`} onRemove={() => onRemove(key)} />
+      )}
     </Box>
   )
 }

@@ -1,29 +1,34 @@
+import Box from '@mui/material/Box'
 import ButtonBase from '@mui/material/ButtonBase'
 import Paper from '@mui/material/Paper'
-import Box from '@mui/material/Box'
 import { useNavigate } from 'react-router'
-import type { Weather } from '../../weather/data/useWeather'
-import type { TileSize } from '../lib/tileSize'
-import { SunWidget } from './SunWidget'
-import { WeatherWidget } from './WeatherWidget'
-import { type WidgetKind, widgetName } from './widgetKinds'
+import type { WidgetTileInfo } from '../lib/reconcileLayout'
+import { widgetHref } from './lib/widgetHref'
+import type { WidgetData } from './useWidgetData'
+import { WidgetBody } from './WidgetBody'
+import { widgetName } from './widgetKinds'
 
-type Props = { kind: WidgetKind; size: TileSize; weather: Weather | undefined }
+type Props = { tile: WidgetTileInfo; data: WidgetData }
 
 /**
- * A widget card: tapping it opens the weather page. The tap target lies under the content (which lets
- * clicks through), so lists inside stay readable instead of being flattened into a button's name.
+ * A widget card. Widgets with a page (weather, a room, a camera) open it on tap: the tap target lies
+ * under the content (which lets clicks through), so lists inside stay readable instead of being
+ * flattened into a button's name. The others are a labelled group.
  */
-export function WidgetTile({ kind, size, weather }: Props) {
+export function WidgetTile({ tile, data }: Props) {
   const navigate = useNavigate()
+  const href = widgetHref(tile)
+  const name = widgetName(tile.widget)
   return (
     <Paper
       variant="outlined"
+      role={href ? undefined : 'group'}
+      aria-label={href ? undefined : name}
       sx={{ position: 'relative', height: '100%', borderRadius: '10px', overflow: 'hidden', '&:hover': { borderColor: 'rgba(159, 176, 221, 0.32)' } }}
     >
-      <ButtonBase aria-label={widgetName(kind)} onClick={() => navigate('/weather')} sx={{ position: 'absolute', inset: 0 }} />
-      <Box sx={{ position: 'relative', height: '100%', pointerEvents: 'none' }}>
-        {weather && (kind === 'WEATHER' ? <WeatherWidget weather={weather} size={size} /> : <SunWidget sun={weather.sun} size={size} />)}
+      {href && <ButtonBase aria-label={name} onClick={() => navigate(href)} sx={{ position: 'absolute', inset: 0 }} />}
+      <Box sx={{ position: 'relative', height: '100%', pointerEvents: href ? 'none' : undefined }}>
+        <WidgetBody tile={tile} data={data} />
       </Box>
     </Paper>
   )

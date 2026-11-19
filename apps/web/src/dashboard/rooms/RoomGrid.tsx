@@ -6,7 +6,7 @@ import { roomSummaries } from '../lib/roomSummaries'
 import { WeatherStrip } from '../../weather/WeatherStrip'
 import { RoomCard } from './RoomCard'
 
-/** The phone's home screen: the weather row, then a card per room, then "All devices". */
+/** The phone's Rooms page: the weather row, then a card per room, then "All devices". */
 export function RoomGrid() {
   const { devices, loading } = useDevices()
   const rooms = useRooms()

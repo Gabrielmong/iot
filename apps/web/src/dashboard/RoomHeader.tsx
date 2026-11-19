@@ -11,7 +11,7 @@ export function RoomHeader({ name, showBack }: Props) {
   return (
     <Stack direction="row" spacing={1} sx={{ alignItems: 'center', minWidth: 0, flex: '1 1 200px' }}>
       {showBack && (
-        <IconButton component={Link} to="/" aria-label="Back to rooms" sx={{ border: 1, borderColor: 'divider' }}>
+        <IconButton component={Link} to="/rooms" aria-label="Back to rooms" sx={{ border: 1, borderColor: 'divider' }}>
           <ArrowBackIcon />
         </IconButton>
       )}

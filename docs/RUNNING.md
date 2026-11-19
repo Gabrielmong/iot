@@ -125,6 +125,16 @@ Cameras (Stage 2):
 - [ ] Swann recovery check: recorder unplugged ~2 min ⇒ tiles "No recent image", page "Camera unavailable"; recovers on reconnect without restart (not yet run).
 - [x] Tuya cloud camera acceptance (Task 14, 2026-11-06, dev PC): "IoT Video Live Stream" enabled; "Camara" and "Cámara Sala 2" play live via Tuya cloud. Tuya allocated URLs are short-lived/single-use, so a fresh URL is requested per producer start (rtsps played natively; HLS uses ffmpeg with Opus audio).
 
+Home dashboard:
+- [ ] `/` opens Home: on a fresh install it shows the Weather widget (or "Nothing on Home yet" once that is removed), not every device.
+- [ ] Edit Home: drag to reorder and resize, then Done; the layout is the same after a reload and on another signed-in device.
+- [ ] While editing Home, "Add a device" lists devices by room and adds the chosen one; "Remove X from Home" takes it off Home only (it stays on All devices).
+- [ ] Add each widget kind once (Weather, Sun, Rain soon, Moon, Clock, Devices offline, Routine, Camera, Room); Routine, Camera and Room ask which one first.
+- [ ] A Routine widget runs the routine; a Room widget opens that room; deleting the routine or room turns the widget into "Not available".
+- [ ] Three Camera widgets on one screen: at most two play live, the third shows Play; Play starts it and stops the oldest. Scrolling a camera off screen or switching tabs stops its stream.
+- [ ] `/all` shows every device as before, with its own layout.
+- [ ] On a phone, the Rooms tab lists the rooms and opens each one; on a PC, `/rooms` goes to All devices.
+
 ## 7. Troubleshooting
 
 - **Logs:** `<repo>\logs\home-control.out.log` and `home-control.err.log`. Config problems are printed at startup (variable names only).
