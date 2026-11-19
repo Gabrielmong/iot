@@ -7,6 +7,7 @@ afterEach(() => h?.stop());
 afterAll(closeDb);
 
 const LAYOUTS = `{ dashboardLayouts { tab isDefault items { deviceId size } } }`;
+const WITH_WIDGETS = `{ dashboardLayouts { tab items { deviceId widget size } } }`;
 const SAVE = `mutation($tab: ID!, $items: [LayoutItemInput!]!, $asDefault: Boolean) {
   saveDashboardLayout(tab: $tab, items: $items, asDefault: $asDefault) { tab isDefault items { deviceId size } }
 }`;
@@ -117,4 +118,21 @@ describe("dashboard layouts", () => {
     await h.ok(root.token, `mutation($id: ID!) { deleteUser(id: $id) }`, { id: ann.id });
     expect(await h.db.userDashboardLayout.count()).toBe(0);
   });
+
+  it("keeps widgets for everyone while still dropping devices a user can't see", async () => {
+    h = await ApiHarness.start();
+    const root = await h.user("Root", "ADMIN");
+    const ann = await h.user("Ann");
+    const [d1, d2] = [await h.device(), await h.device()];
+    await h.grant(ann.id, d1);
+    const items = [{ widget: "WEATHER", size: "W2x1" }, item(d1), item(d2), { widget: "SUN", size: "S1x1" }];
+    await h.ok(root.token, SAVE, { tab: "all", items, asDefault: true });
+    const got = (await h.ok(ann.token, WITH_WIDGETS)).dashboardLayouts[0].items;
+    expect(got).toEqual([
+      { deviceId: null, widget: "WEATHER", size: "W2x1" },
+      { deviceId: d1, widget: null, size: "S1x1" },
+      { deviceId: null, widget: "SUN", size: "S1x1" },
+    ]);
+  });
 });
+

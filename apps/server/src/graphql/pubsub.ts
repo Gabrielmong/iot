@@ -1,5 +1,5 @@
 import { PubSub, type PubSubEngine } from "graphql-subscriptions";
-import { CAMERA_GROUPS_CHANGED, DEVICE_STATE, DEVICES_CHANGED, ROUTINE_RUN, ROUTINES_CHANGED, type DeviceStatePayload, type RoutineRunPayload } from "../devices/topics.js";
+import { CAMERA_GROUPS_CHANGED, DEVICE_STATE, DEVICES_CHANGED, ROUTINE_RUN, ROUTINES_CHANGED, WEATHER_UPDATED, type DeviceStatePayload, type RoutineRunPayload } from "../devices/topics.js";
 
 /** In-process PubSub shared by the device manager (publisher) and the subscriptions (consumers). */
 export function createPubSub(): PubSub {
@@ -39,4 +39,13 @@ export function deviceStateEvents(pubsub: PubSubEngine): AsyncIterableIterator<D
 
 export function devicesChangedEvents(pubsub: PubSubEngine): AsyncIterableIterator<unknown> {
   return pubsub.asyncIterableIterator(DEVICES_CHANGED);
+}
+
+/** Tells clients the weather (or its status) changed; they read it from the payload. */
+export function publishWeatherUpdated(pubsub: PubSubEngine): Promise<void> {
+  return pubsub.publish(WEATHER_UPDATED, {});
+}
+
+export function weatherUpdatedEvents(pubsub: PubSubEngine): AsyncIterableIterator<unknown> {
+  return pubsub.asyncIterableIterator(WEATHER_UPDATED);
 }

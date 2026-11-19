@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes } from 'react-router'
 import { of } from 'rxjs'
 import { deviceFixture } from '../../test/deviceFixtures'
 import { routineFixture, runFixture } from '../../test/routineFixtures'
+import { emptyWeather } from '../../test/weatherFixtures'
 import { createTestClient, liveSubscription, reply, type Handler } from '../../test/testClient'
 import { RoutineEditorLoader } from './RoutineEditorLoader'
 
@@ -72,10 +73,37 @@ describe('RoutineEditor', () => {
           roomId: null,
           audience: null,
           steps: [{ kind: 'SET', actions: [{ deviceId: 'tv', on: true, brightness: null, color: null, colorTempK: null, pcPower: null }] }],
-          schedules: [{ time: '07:00', days: [1, 2, 3, 4, 5], enabled: true }],
+          schedules: [{ anchor: 'CLOCK', time: '07:00', offsetMinutes: 0, days: [1, 2, 3, 4, 5], enabled: true }],
         },
       },
     ])
+  })
+
+  it('schedules a routine 30 minutes before sunset', async () => {
+    const { calls } = setup()
+    fireEvent.change(await screen.findByLabelText('Name'), { target: { value: 'Porch' } })
+    await addTvOn()
+    fireEvent.click(screen.getByRole('button', { name: 'Add time' }))
+    expect(screen.getByText('Time', { selector: 'label' })).toBeInTheDocument()
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: 'At' }))
+    fireEvent.click(await screen.findByRole('option', { name: 'Sunset' }))
+    expect(screen.queryByText('Time', { selector: 'label' })).not.toBeInTheDocument()
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Minutes' }), { target: { value: '30' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Before' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(await screen.findByText('Routines list')).toBeInTheDocument()
+    expect((calls.create[0] as { input: { schedules: unknown[] } }).input.schedules).toEqual([
+      { anchor: 'SUNSET', time: null, offsetMinutes: -30, days: [1, 2, 3, 4, 5], enabled: true },
+    ])
+  })
+
+  it('warns that sun times need the home location', async () => {
+    setup({ extra: { Weather: reply({ weather: emptyWeather('NO_LOCATION') }), WeatherUpdated: liveSubscription().handler } })
+    await screen.findByLabelText('Name')
+    fireEvent.click(screen.getByRole('button', { name: 'Add time' }))
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: 'At' }))
+    fireEvent.click(await screen.findByRole('option', { name: 'Sunrise' }))
+    expect(await screen.findByText('Needs the home location')).toBeInTheDocument()
   })
 
   it('offers TVs and computers; a computer can only be woken', async () => {

@@ -1,6 +1,7 @@
 import Box from '@mui/material/Box'
 import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
+import { useWeather } from '../weather/data/useWeather'
 import { AllOffButton } from './AllOffButton'
 import { useAllOff } from './data/useAllOff'
 import { useDevices } from './data/useDevices'
@@ -15,6 +16,8 @@ import { ArrangeBar } from './layout/ArrangeBar'
 import { ArrangeGrid } from './layout/ArrangeGrid'
 import { ConfirmResetDialog } from './layout/ConfirmResetDialog'
 import { useArrange } from './layout/useArrange'
+import { defaultWidgets } from './widgets/defaultWidgets'
+import { AddWidgetButton } from './widgets/AddWidgetButton'
 import { dashboardView } from './lib/dashboardView'
 import { devicesToTurnOff } from './lib/devicesToTurnOff'
 import { ALL_DEVICES_NAME } from './lib/roomSummaries'
@@ -40,7 +43,8 @@ export function Dashboard({ isAdmin, room, showBack = false }: { isAdmin: boolea
 
   const { tabs, tab, tiles } = dashboardView(devices, rooms, room)
   const name = tab === ALL_TAB ? ALL_DEVICES_NAME : (tabs.find((r) => r.id === tab)?.name ?? ALL_DEVICES_NAME)
-  const arrange = useArrange(tab, tiles, setError)
+  const { weather } = useWeather()
+  const arrange = useArrange(tab, tiles, setError, defaultWidgets(tab, weather))
   const firstLoad = loading && devices.length === 0
   useScrollMemory(pathname, !firstLoad && tiles.length > 0)
 
@@ -52,6 +56,7 @@ export function Dashboard({ isAdmin, room, showBack = false }: { isAdmin: boolea
           {tiles.length > 0 && !arrange.arranging && (
             <AllOffButton disabled={devicesToTurnOff(tiles).length === 0} onClick={() => void allOff(tiles)} />
           )}
+          {arrange.arranging && <AddWidgetButton kinds={arrange.widgetsToAdd} onAdd={arrange.addWidget} />}
           {(tiles.length > 0 || arrange.arranging) && (
             <ArrangeBar
               arranging={arrange.arranging}
@@ -74,9 +79,16 @@ export function Dashboard({ isAdmin, room, showBack = false }: { isAdmin: boolea
       ) : (
         <Box sx={{ mt: 2 }}>
           {arrange.arranging ? (
-            <ArrangeGrid tiles={arrange.tiles} onMove={arrange.move} onMoveBy={arrange.moveBy} onResize={arrange.resize} />
+            <ArrangeGrid
+              tiles={arrange.tiles}
+              weather={weather}
+              onMove={arrange.move}
+              onMoveBy={arrange.moveBy}
+              onResize={arrange.resize}
+              onRemoveWidget={arrange.removeWidget}
+            />
           ) : (
-            <DeviceGrid tiles={arrange.tiles} isAdmin={isAdmin} onToggle={toggle} onOpenDetails={(d) => navigate('/devices/' + d.id, { state: { from: pathname } })} />
+            <DeviceGrid tiles={arrange.tiles} weather={weather} isAdmin={isAdmin} onToggle={toggle} onOpenDetails={(d) => navigate('/devices/' + d.id, { state: { from: pathname } })} />
           )}
         </Box>
       )}

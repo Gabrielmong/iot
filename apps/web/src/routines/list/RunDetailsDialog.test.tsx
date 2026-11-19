@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
-import { routineFixture, runFixture } from '../../test/routineFixtures'
+import { routineFixture, runFixture, NO_CONDITION_FIELDS } from '../../test/routineFixtures'
 import { clockTime } from '../lib/runProgress'
 import type { Routine } from '../types'
 import { RunDetailsDialog } from './RunDetailsDialog'
@@ -11,8 +11,8 @@ const names = new Map([
 
 function movieNight(lastRun: Routine['lastRun']): Routine {
   const r = routineFixture({ name: 'Movie night', deviceIds: ['lamp', 'tv'], lastRun })
-  r.steps.push({ kind: 'WAIT', waitMinutes: 45, routineId: null, routineName: null, actions: [] })
-  r.steps.push({ kind: 'SET', waitMinutes: null, routineId: null, routineName: null, actions: [{ ...r.steps[0]!.actions[0]!, on: false }] })
+  r.steps.push({ ...NO_CONDITION_FIELDS, kind: 'WAIT', waitMinutes: 45, routineId: null, routineName: null, actions: [] })
+  r.steps.push({ ...NO_CONDITION_FIELDS, kind: 'SET', waitMinutes: null, routineId: null, routineName: null, actions: [{ ...r.steps[0]!.actions[0]!, on: false }] })
   return r
 }
 
@@ -64,7 +64,7 @@ describe('RunDetailsDialog', () => {
 
   it('lists the problems of a called routine under its step', () => {
     const r = routineFixture({ name: 'Bedtime', deviceIds: [], lastRun: null })
-    r.steps.push({ kind: 'ROUTINE', waitMinutes: null, routineId: 'lock', routineName: 'Lock up', actions: [] })
+    r.steps.push({ ...NO_CONDITION_FIELDS, kind: 'ROUTINE', waitMinutes: null, routineId: 'lock', routineName: 'Lock up', actions: [] })
     r.lastRun = runFixture('PARTIAL', [{ step: 1, deviceId: 'lamp', deviceName: 'Lamp', reason: 'UNREACHABLE', routineName: 'Lock up' }], 0)
     render(<RunDetailsDialog routine={r} deviceNames={names} onStop={() => {}} onClose={() => {}} />)
     expect(within(step(2)).getByText(/Run Lock up$/)).toBeInTheDocument()
@@ -73,7 +73,7 @@ describe('RunDetailsDialog', () => {
 
   it('words a problem with the call itself, and one inside a called routine, differently', () => {
     const r = routineFixture({ name: 'Bedtime', deviceIds: [], lastRun: null })
-    r.steps.push({ kind: 'ROUTINE', waitMinutes: null, routineId: 'lock', routineName: 'Lock up', actions: [] })
+    r.steps.push({ ...NO_CONDITION_FIELDS, kind: 'ROUTINE', waitMinutes: null, routineId: 'lock', routineName: 'Lock up', actions: [] })
     r.lastRun = runFixture(
       'PARTIAL',
       [
@@ -85,5 +85,16 @@ describe('RunDetailsDialog', () => {
     render(<RunDetailsDialog routine={r} deviceNames={names} onStop={() => {}} onClose={() => {}} />)
     expect(within(step(2)).getByText('⚠ Routine: routine removed')).toBeInTheDocument()
     expect(within(step(2)).getByText('⚠ Lock up › Run routine: routine removed')).toBeInTheDocument()
+  })
+
+  it('shows weather check outcomes and an unavailable weather problem', () => {
+    const r = routineFixture({ name: 'Porch' })
+    r.steps.push({ ...NO_CONDITION_FIELDS, kind: 'CONTINUE_IF', waitMinutes: null, routineId: null, routineName: null, actions: [], conditions: [{ metric: 'RAINING_NOW', op: 'IS_NOT', value: null }] })
+    const run = runFixture('PARTIAL', [{ step: 1, deviceName: null, reason: 'WEATHER_UNAVAILABLE' }], 0, { notes: [{ kind: 'STOPPED', step: 1, conditions: 'not raining now' }] })
+    r.lastRun = run
+    render(<RunDetailsDialog routine={r} deviceNames={names} onStop={() => {}} onClose={() => {}} />)
+    expect(within(step(2)).getByText(/Only continue if not raining now/)).toBeInTheDocument()
+    expect(screen.getByText(/Weather unavailable/)).toBeInTheDocument()
+    expect(screen.getByText("Stopped: not raining now wasn't met")).toBeInTheDocument()
   })
 })

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatTime, isDue, localSlot, parseSchedules, slotsBetween } from "../src/routines/schedule.js";
+import { formatTime, isDue, localSlot, parseSchedules, scheduleMinute, slotsBetween, type Schedule } from "../src/routines/schedule.js";
 
 const message = (fn: () => unknown) => {
   try {
@@ -12,8 +12,8 @@ const message = (fn: () => unknown) => {
 
 describe("parseSchedules", () => {
   it("parses HH:MM and sorts unique days", () => {
-    expect(parseSchedules([{ time: "07:30", days: [5, 1, 1, 3] }])).toEqual([{ minuteOfDay: 450, days: [1, 3, 5], enabled: true }]);
-    expect(parseSchedules([{ time: "23:59", days: [7], enabled: false }])).toEqual([{ minuteOfDay: 1439, days: [7], enabled: false }]);
+    expect(parseSchedules([{ time: "07:30", days: [5, 1, 1, 3] }])).toEqual([{ minuteOfDay: 450, days: [1, 3, 5], enabled: true, anchor: "CLOCK", offsetMinutes: 0 }]);
+    expect(parseSchedules([{ time: "23:59", days: [7], enabled: false }])).toEqual([{ minuteOfDay: 1439, days: [7], enabled: false, anchor: "CLOCK", offsetMinutes: 0 }]);
   });
 
   it("rejects bad times", () => {
@@ -28,6 +28,21 @@ describe("parseSchedules", () => {
     const row = { time: "07:00", days: [1] };
     expect(parseSchedules(Array(10).fill(row))).toHaveLength(10);
     expect(message(() => parseSchedules(Array(11).fill(row)))).toBe("A routine can have at most 10 schedules");
+  });
+
+  it("parses sunrise and sunset schedules with an offset", () => {
+    expect(parseSchedules([{ anchor: "SUNSET", offsetMinutes: -30, days: [1] }])).toEqual([{ minuteOfDay: 0, days: [1], enabled: true, anchor: "SUNSET", offsetMinutes: -30 }]);
+    expect(parseSchedules([{ anchor: "SUNRISE", time: null, days: [2] }])[0]).toMatchObject({ anchor: "SUNRISE", offsetMinutes: 0 });
+  });
+
+  it("needs a time for clock schedules", () => {
+    expect(message(() => parseSchedules([{ anchor: "CLOCK", days: [1] }]))).toBe("Times must be HH:MM");
+  });
+
+  it("limits sun offsets to three hours either way", () => {
+    for (const offsetMinutes of [181, -181, 1.5]) {
+      expect(message(() => parseSchedules([{ anchor: "SUNSET", offsetMinutes, days: [1] }]))).toBe("Offsets must be −180 to 180 minutes");
+    }
   });
 
   it("formats minutes back to HH:MM", () => {
@@ -57,10 +72,39 @@ describe("slots", () => {
   });
 
   it("isDue matches minute and weekday on enabled rows only", () => {
-    const s = { minuteOfDay: 450, days: [1, 2], enabled: true };
+    const s: Schedule = { minuteOfDay: 450, days: [1, 2], enabled: true, anchor: "CLOCK", offsetMinutes: 0 };
     expect(isDue(s, { day: 1, minuteOfDay: 450 })).toBe(true);
     expect(isDue(s, { day: 3, minuteOfDay: 450 })).toBe(false);
     expect(isDue(s, { day: 1, minuteOfDay: 451 })).toBe(false);
     expect(isDue({ ...s, enabled: false }, { day: 1, minuteOfDay: 450 })).toBe(false);
   });
 });
+
+describe("scheduleMinute", () => {
+  const sun = (anchor: Schedule["anchor"], offsetMinutes = 0): Schedule => ({ minuteOfDay: 0, days: [1], enabled: true, anchor, offsetMinutes });
+
+  it("is the clock time for clock schedules", () => {
+    expect(scheduleMinute({ minuteOfDay: 450, days: [1], enabled: true, anchor: "CLOCK", offsetMinutes: 0 }, null)).toBe(450);
+  });
+
+  it("is sunset plus the offset", () => {
+    expect(scheduleMinute(sun("SUNSET", -30), { sunrise: 330, sunset: 1065 })).toBe(1035);
+    expect(scheduleMinute(sun("SUNRISE", 15), { sunrise: 330, sunset: 1065 })).toBe(345);
+  });
+
+  it("is never when the offset crosses midnight", () => {
+    expect(scheduleMinute(sun("SUNSET", 180), { sunrise: 330, sunset: 1380 })).toBeNull();
+    expect(scheduleMinute(sun("SUNRISE", -180), { sunrise: 60, sunset: 1065 })).toBeNull();
+  });
+
+  it("is never without sun times (no home location, or polar day)", () => {
+    expect(scheduleMinute(sun("SUNSET"), null)).toBeNull();
+    expect(scheduleMinute(sun("SUNSET"), { sunrise: 330, sunset: null })).toBeNull();
+  });
+
+  it("makes a sun schedule due at its computed minute", () => {
+    expect(isDue(sun("SUNSET", -30), { day: 1, minuteOfDay: 1035 }, { sunrise: 330, sunset: 1065 })).toBe(true);
+    expect(isDue(sun("SUNSET", -30), { day: 1, minuteOfDay: 1035 }, null)).toBe(false);
+  });
+});
+

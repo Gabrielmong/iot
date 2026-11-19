@@ -47,9 +47,9 @@ The user added a Google Maps API key and an Xweather key to `.env`. They want th
 
 - Monorepo: `apps/server` (Node, Apollo GraphQL `src/graphql/schema.graphql`, Prisma/Postgres, migrations in `apps/server/prisma/migrations`), `apps/web` (React 19, MUI 9, Apollo 4, framer-motion, Vite). Android app is a WebView of the web app, so "mobile" means the web app at phone width.
 - Small files, one concern each (project rule).
-- Server env is validated in `apps/server/src/config.ts` (`loadConfig`); production `.env` is at `C:\HomeControl\shared\.env` on the server PC, not in CI. Keys present in `.env`: `GOOGLE_API_KEY`, `XWEATHER_CLIENTID`, `XWEATHER_CLIENTSECRET` (plus a combined `XWEATHER_API_KEY`, which is not used).
-- **Xweather auth** uses a `client_id` + `client_secret` pair on each request, read from `XWEATHER_CLIENTID` and `XWEATHER_CLIENTSECRET` (the user's names; keep them). The same two must be added to `C:\HomeControl\shared\.env` on the server PC.
-- Both keys are optional: with either missing, the server starts normally and the related features show a clear "not configured" state (admin sees which variable is missing; others just see weather unavailable).
+- **Keys live in Admin › Integrations, not `.env`** (user decision). Existing integrations (Tuya, Kasa, Swann) store credentials encrypted in `Setting` rows via `writeEncryptedSettings` / `readEncryptedSettings` (`apps/server/src/services/settings-store.ts`, keys in `settings-keys.ts`) and are edited in `apps/web/src/admin/IntegrationsPage.tsx` sub-tabs (`apps/server/src/services/integrations.ts`). Xweather and Google Maps follow that pattern exactly. The `GOOGLE_API_KEY` / `XWEATHER_*` values the user put in the dev `.env` are not read by the app; they're just where the user will copy them from.
+- **Xweather auth** uses a `client_id` + `client_secret` pair on each request.
+- Both integrations are optional: unconfigured, the server runs normally and the related features show a clear "not configured" state (admins get a link to Integrations; others just see weather unavailable).
 - Google Maps JS requires a billing-enabled project. The key must be restricted in Google Cloud to the Maps JavaScript + Places APIs and to HTTP referrers of the app (the server's LAN address, e.g. `http://192.168.0.100:<port>/*`; the Android WebView loads the same origin). Document this in `docs/RUNNING.md`.
 - Routine schedules today are `minuteOfDay` in server local time (`apps/server/src/routines/schedule.ts`), checked each minute by `RoutineScheduler` (`scheduler.ts`). Steps are a JSON array of `SET | WAIT | ROUTINE` (`steps.ts`, `LIMITS.maxNesting = 3`).
 - Dashboard layouts store `{ deviceId, size }` items (`apps/server/src/services/layout-items.ts`, GraphQL `LayoutItem`).
@@ -78,23 +78,35 @@ The user added a Google Maps API key and an Xweather key to `.env`. They want th
 
 ### 6.4 Claude's calls (user did not object)
 
-- **Weather fetch:** server polls on a timer (default every 15 min, env `WEATHER_REFRESH_MINUTES`), caches the latest result in memory and in the DB (so a restart has data immediately), pushes it over a GraphQL subscription. Routines read the cache.
-- **Maps key delivery:** served by the API to admins on demand, not baked into the Vite build.
+- **Weather fetch:** server polls on a timer (default every 15 min, set in `WeatherSettings`), caches the latest result in memory and in the DB (so a restart has data immediately), pushes it over a GraphQL subscription. Routines read the cache.
+- **Maps key delivery:** stored encrypted with the integrations, served by the API to admins on demand, not baked into the Vite build.
+- **Weather options in their own table (user decision):** a typed single-row `WeatherSettings` table rather than more `Setting` text rows, so the database enforces types.
 - **Map library:** `@vis.gl/react-google-maps` (Google's official React wrapper) with Places autocomplete for address search.
 - **Layout item shape:** an item is either a device or a widget kind; at most one of each widget kind per tab. No separate widget table.
 - **Units:** metric.
 
 ## 7. Design
 
+### 7.0 Storage
+
+- **Integrations (encrypted `Setting` rows, existing pattern):** new keys in `settings-keys.ts`: `xweather.clientId`, `xweather.clientSecret`, `google.mapsApiKey`. Admin › Integrations gets **Xweather** and **Google Maps** sub-tabs built like the existing ones (save, show configured / not configured, never echo secrets back, a **Test** action: Xweather fetches current conditions for the saved location or a fixed sample point; Google Maps is validated client-side by loading the map). Saving or clearing Xweather credentials restarts the poller.
+- **`WeatherSettings` table (new, one row, id fixed e.g. `"home"`):**
+  - `lat Float?`, `lng Float?`, `address String?` — the household pin (null until set)
+  - `refreshMinutes Int @default(15)` — validated 5–120
+  - `staleMinutes Int @default(45)` — validated ≥ refreshMinutes, ≤ 720; older data is "unknown" to routines
+  - `enabled Boolean @default(true)` — off stops polling; widgets/strip hide; weather conditions are unknown; sun times and sun schedules still work (they need only the pin)
+  - `updatedAt DateTime @updatedAt`
+- The last fetched snapshot is persisted separately (builder's choice of table/column), not mixed into this row's settings.
+
 ### 7.1 Household location
 
-- Stored as a Setting (same mechanism as `home.name`, `apps/server/src/settings-keys.ts`): key `home.location`, JSON `{ lat, lng, address?: string }`.
+- Stored in the new `WeatherSettings` table (§7.0).
 - GraphQL:
-  - `homeLocation: HomeLocation` — admin only. `HomeLocation { lat: Float! lng: Float! address: String }`.
-  - `setHomeLocation(lat: Float!, lng: Float!, address: String): HomeLocation!` — admin only; validates ranges.
-  - `mapsConfig: MapsConfig` — admin only; `{ apiKey: String }` (null when `GOOGLE_API_KEY` is unset).
+  - `weatherSettings: WeatherSettings` — admin only. `{ lat: Float  lng: Float  address: String  refreshMinutes: Int!  staleMinutes: Int!  enabled: Boolean! }`.
+  - `updateWeatherSettings(input: WeatherSettingsInput!): WeatherSettings!` — admin only; validates lat/lng ranges and the minute limits.
+  - `mapsApiKey: String` — admin only; the decrypted Google Maps key, null when not configured.
 - Saving a new location triggers an immediate weather refresh.
-- Web: `apps/web/src/admin/settings/` gets a `HomeLocationCard` next to `HomeNameForm`: address search box, map with a draggable pin (click map to move pin), coordinates shown read-only, Save / Cancel. Without a Maps key: a message naming `GOOGLE_API_KEY` and, as a fallback, plain lat/lng fields so the feature still works.
+- Web: `apps/web/src/admin/settings/` gets a `HomeLocationCard` next to `HomeNameForm`: address search box, map with a draggable pin (click map to move pin), coordinates shown read-only, Save / Cancel. Without a Maps key: a message linking to Integrations › Google Maps and, as a fallback, plain lat/lng fields so the feature still works.
 
 ### 7.2 Weather service (server)
 
@@ -109,9 +121,9 @@ The user added a Google Maps API key and an Xweather key to `.env`. They want th
   - `sun { sunrise sunset }` (today, local)
 - `condition` is our own small enum (CLEAR, PARTLY_CLOUDY, CLOUDY, FOG, DRIZZLE, RAIN, STORM, SNOW, WINDY, UNKNOWN) mapped from Xweather codes; `icon` is our own icon key, not Xweather's image URL.
 - Subscription `weatherUpdated: Weather`.
-- Staleness: data older than 3 × refresh interval (≥ 45 min by default) is `stale`. Stale data still displays (with "updated 1 h ago") but routine conditions treat it as unknown.
+- Staleness: data older than `staleMinutes` (default 45) is `stale`. Stale data still displays (with "updated 1 h ago") but routine conditions treat it as unknown.
 - Persist the last snapshot (Setting `weather.snapshot` or a tiny table) so restarts aren't blank.
-- Admin › Settings shows weather status (last update, last error) under the map.
+- Admin › Settings: a **Weather** card under the map with enabled switch, refresh interval, stale-after, and status (last update, last error).
 
 ### 7.3 Widgets in dashboard layouts
 
@@ -125,7 +137,7 @@ The user added a Google Maps API key and an Xweather key to `.env`. They want th
 
 ### 7.4 Phone home and weather page
 
-- Phone home (room grid, `apps/web/src/dashboard/rooms/RoomGrid.tsx`): a compact weather strip above the cards: icon, temp, condition, H/L, rain chance. Tap → `/weather`. Hidden when weather status is NOT_CONFIGURED; shows "Set the home location in Settings" for admins when NO_LOCATION (nothing for others).
+- Phone home (room grid, `apps/web/src/dashboard/rooms/RoomGrid.tsx`): a compact weather strip above the cards: icon, temp, condition, H/L, rain chance. Tap → `/weather`. Hidden when weather status is NOT_CONFIGURED or weather is disabled; shows "Set the home location in Settings" for admins when NO_LOCATION (nothing for others).
 - `/weather` page: current conditions, hourly strip (12 h), 5-day list, sunrise/sunset, "updated n min ago". Side menu entry "Weather" (all roles).
 
 ### 7.5 Sun-timed schedules
@@ -156,10 +168,10 @@ The user added a Google Maps API key and an Xweather key to `.env`. They want th
 - Editor: two new step cards ("Only continue if…", "If… then run… otherwise run…") with a condition list editor; IF reuses `RoutinePickerDialog`. Add-step menu gains both.
 - Conditions are available to all roles that can edit routines; guests remain read-only.
 
-### 7.7 Configuration and docs
+### 7.7 Docs
 
-- `config.ts`: optional `googleApiKey` (`GOOGLE_API_KEY`), `xweatherClientId` (`XWEATHER_CLIENTID`), `xweatherClientSecret` (`XWEATHER_CLIENTSECRET`), `weatherRefreshMinutes` (default 15, min 5).
-- `docs/RUNNING.md`: how to restrict the Google key (APIs + referrers), billing note, Xweather credentials, refresh interval.
+- `docs/RUNNING.md`: enter Xweather and Google Maps credentials in Admin › Integrations; restrict the Google key in Google Cloud (Maps JavaScript + Places APIs, HTTP referrers of the app's LAN address); billing note.
+- No new environment variables.
 
 ## 8. Left to the builder
 
@@ -172,4 +184,6 @@ The user added a Google Maps API key and an Xweather key to `.env`. They want th
 ## 9. Decisions from review
 
 - **A stop inside a called routine stops only that routine.** If a "Continue only if" isn't met, or weather is unknown, inside a routine called by a ROUTINE step or an IF branch, only that called routine ends; the caller carries on with its next step (user, 2026-11-18). The note and any problem are still recorded on the top-level run.
-- **Xweather credentials** are separate variables `XWEATHER_CLIENTID` / `XWEATHER_CLIENTSECRET` (user added them, 2026-11-18). A live check against Xweather is possible from the dev PC; automated tests still use recorded fixtures only.
+- **Credentials live in Admin › Integrations** (encrypted, existing pattern), not `.env` (user, 2026-11-18). Xweather uses a separate client ID and secret.
+- **Weather options get their own `WeatherSettings` table** (user, 2026-11-18).
+- Automated tests use recorded Xweather fixtures only; a live check can be done by hand via the Integrations Test button.

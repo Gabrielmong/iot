@@ -29,6 +29,9 @@ import { AgentHub } from "./agent/hub.js";
 import { PcPowerRelay } from "./agent/power.js";
 import { StatsBroker } from "./agent/stats-broker.js";
 import type { ServiceDeps } from "./services/deps.js";
+import { fetchXweather } from "./weather/xweather-client.js";
+import { WeatherService } from "./weather/service.js";
+import { localSunMinutes } from "./weather/sun.js";
 import { PendingPairings } from "./devices/pending-pairings.js";
 import { probeKasa } from "./services/kasa-probe.js";
 import { onShutdownSignal } from "./shutdown.js";
@@ -73,8 +76,11 @@ async function main(): Promise<void> {
   reregisterOnReady(go2rtc, go2rtcApi, streams, log);
   await go2rtc.start();
 
+  const weather = new WeatherService({ prisma, secretKey: config.secretKey, fetch: (creds, at) => fetchXweather(creds, at), pubsub, now: () => new Date(), log });
+  await weather.start();
+
   const pcPower = new PcPowerRelay(agents, pubsub, () => new Date());
-  const routines = new RoutineService(prisma, manager, pubsub, { now: () => new Date(), log, pcPower });
+  const routines = new RoutineService(prisma, manager, pubsub, { now: () => new Date(), log, pcPower, weather: () => weather.facts() });
   await routines.markInterrupted();
 
   const deps: ServiceDeps = {
@@ -94,6 +100,8 @@ async function main(): Promise<void> {
     rtspDescribe: (url, creds) => rtspDescribe(url, creds), // Digest only: allowBasic stays false
     tuyaPresence: (target) => tuyaPresent(target),
     tuyaPortScan: () => scanTuyaHosts(config.lanAddress),
+    weatherFetch: (creds, at) => fetchXweather(creds, at),
+    weather,
     tvPairings: new PendingPairings(() => new Date()),
     routines,
     agents,
@@ -106,7 +114,11 @@ async function main(): Promise<void> {
   const server = await startServer(deps, { port: config.port, log, webDist: production ? WEB_DIST : undefined, androidApkDir: config.androidApkDir, agentDir: config.agentDir });
   log.info(`Home server listening on port ${server.port}${production ? " (serving the web app)" : ""}`);
   const announcement = startAnnouncement({ port: server.port, name: await announcedName(prisma, log), host: config.lanAddress, log });
-  const scheduler = new RoutineScheduler({ prisma, run: (id) => routines.runScheduled(id), now: () => new Date(), log });
+  const sunMinutes = (day: Date) => {
+    const at = weather.facts().location;
+    return at ? localSunMinutes(day, at) : null;
+  };
+  const scheduler = new RoutineScheduler({ prisma, run: (id) => routines.runScheduled(id), now: () => new Date(), log, sunMinutes });
   scheduler.start();
   const tuyaSync = new TuyaSyncSchedule({
     sync: () => syncTuyaKeys(deps),
@@ -124,6 +136,7 @@ async function main(): Promise<void> {
     deps.tvPairings.cancelAll();
     go2rtc.prepareStop();
     scheduler.stop();
+    weather.stop();
     tuyaSync.stop();
     await server.close();
     routines.stopAll();

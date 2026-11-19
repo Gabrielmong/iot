@@ -5,6 +5,17 @@ const lampOn: DraftAction = { deviceId: 'lamp', on: true, brightness: null, colo
 const set = (actions = [lampOn]): DraftStep => ({ key: Math.random().toString(), kind: 'SET', actions })
 const wait = (minutes: number): DraftStep => ({ key: Math.random().toString(), kind: 'WAIT', minutes })
 const routine = (routineId: string, routineName: string | null): DraftStep => ({ key: Math.random().toString(), kind: 'ROUTINE', routineId, routineName })
+const temp = (value: number | null) => ({ key: 'c', metric: 'TEMP_C' as const, op: 'ABOVE' as const, value })
+const continueIf = (conditions = [temp(28)]): DraftStep => ({ key: Math.random().toString(), kind: 'CONTINUE_IF', conditions })
+const ifStep = (then: { id: string | null; name: string | null }, conditions = [temp(28)]): DraftStep => ({
+  key: Math.random().toString(),
+  kind: 'IF',
+  conditions,
+  thenRoutineId: then.id,
+  thenRoutineName: then.name,
+  elseRoutineId: null,
+  elseRoutineName: null,
+})
 const valid = (over: Partial<Draft> = {}): Draft => ({ ...emptyDraft('PERSONAL'), name: 'Movie night', steps: [set()], ...over })
 
 describe('draftErrors', () => {
@@ -45,8 +56,28 @@ describe('draftErrors', () => {
   })
 
   it('needs days on every schedule and at most 10 rows', () => {
-    const row = { key: 'k', time: '07:00', days: [1], enabled: true }
+    const row = { key: 'k', anchor: 'CLOCK' as const, time: '07:00', offsetMinutes: 0, days: [1], enabled: true }
     expect(draftErrors(valid({ schedules: [{ ...row, days: [] }] }))).toEqual(['Pick at least one day for each time'])
     expect(draftErrors(valid({ schedules: Array(11).fill(row) }))).toEqual(['A routine can have at most 10 schedules'])
+  })
+
+  it('needs a routine for an If to run', () => {
+    expect(draftErrors(valid({ steps: [set(), ifStep({ id: null, name: null })] }))).toEqual(['Pick a routine to run'])
+    expect(draftErrors(valid({ steps: [ifStep({ id: 'cool', name: 'Cool down' })] }))).toEqual([])
+  })
+
+  it('asks to replace a removed routine in an If', () => {
+    expect(draftErrors(valid({ steps: [set(), ifStep({ id: 'gone', name: null })] }))).toEqual(['Replace the removed routine'])
+  })
+
+  it('checks conditions like the server', () => {
+    expect(draftErrors(valid({ steps: [set(), continueIf([])] }))).toEqual(['Add 1 to 5 conditions'])
+    expect(draftErrors(valid({ steps: [set(), continueIf(Array(6).fill(temp(1)))] }))).toEqual(['Add 1 to 5 conditions'])
+    expect(draftErrors(valid({ steps: [set(), continueIf([temp(null)])] }))).toEqual(['Enter a value'])
+    expect(draftErrors(valid({ steps: [set(), continueIf([temp(61)])] }))).toEqual(['Temperature must be from -50 to 60'])
+  })
+
+  it('does not count an Only-continue-if step as something to do', () => {
+    expect(draftErrors(valid({ steps: [continueIf()] }))).toEqual(['Add a device or a routine'])
   })
 })

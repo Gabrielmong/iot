@@ -3,6 +3,8 @@ import { addKasaByIp } from "../../services/kasa-add.js";
 import { setSwannRecorder } from "../../services/swann.js";
 import { setTuyaLocalKey } from "../../services/tuya-keys.js";
 import { syncTuyaKeys } from "../../services/tuya-sync.js";
+import { googleMapsKey, setGoogleMapsKey, setXweatherCredentials, testXweather } from "../../weather/credentials.js";
+import { locationOf, readWeatherOptions } from "../../weather/settings.js";
 import type { ApiContext } from "../context.js";
 import { requireAdmin } from "../guards.js";
 import { adminDeviceView } from "../admin-device.js";
@@ -15,6 +17,10 @@ export const integrationResolvers = {
     integrations: (_: unknown, __: unknown, ctx: ApiContext) => {
       requireAdmin(ctx);
       return integrationStatus(ctx.prisma);
+    },
+    mapsApiKey: async (_: unknown, __: unknown, ctx: ApiContext) => {
+      requireAdmin(ctx);
+      return (await googleMapsKey(ctx.deps)) ?? null;
     },
   },
   Mutation: {
@@ -37,6 +43,21 @@ export const integrationResolvers = {
     setSwannRecorder: (_: unknown, args: { host: string; username: string; password: string }, ctx: ApiContext) => {
       requireAdmin(ctx);
       return setSwannRecorder(ctx.deps, args);
+    },
+    setXweatherCredentials: async (_: unknown, { clientId, clientSecret }: { clientId: string; clientSecret: string }, ctx: ApiContext) => {
+      requireAdmin(ctx);
+      await setXweatherCredentials(ctx.deps, clientId, clientSecret);
+      await ctx.deps.weather.reconfigure();
+      return integrationStatus(ctx.prisma);
+    },
+    setGoogleMapsKey: async (_: unknown, { apiKey }: { apiKey: string }, ctx: ApiContext) => {
+      requireAdmin(ctx);
+      await setGoogleMapsKey(ctx.deps, apiKey);
+      return integrationStatus(ctx.prisma);
+    },
+    testXweather: async (_: unknown, __: unknown, ctx: ApiContext) => {
+      requireAdmin(ctx);
+      return testXweather(ctx.deps, locationOf(await readWeatherOptions(ctx.prisma)));
     },
     addKasaByIp: async (_: unknown, { ip }: { ip: string }, ctx: ApiContext) => {
       requireAdmin(ctx);

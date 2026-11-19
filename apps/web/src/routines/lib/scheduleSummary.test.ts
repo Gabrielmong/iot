@@ -15,6 +15,13 @@ describe('scheduleSummary', () => {
     expect(scheduleSummary([row('22:00', [1, 2, 3, 4, 5, 6, 7])])).toBe('22:00 every day')
   })
 
+  it('names sun times with their offset', () => {
+    const sun = (anchor: 'SUNRISE' | 'SUNSET', offsetMinutes: number, days: number[]) => ({ time: null, anchor, offsetMinutes, days, enabled: true })
+    expect(scheduleSummary([sun('SUNSET', -30, [1, 2, 3, 4, 5])])).toBe('Sunset −30 min Mon–Fri')
+    expect(scheduleSummary([sun('SUNRISE', 0, [1, 2, 3, 4, 5, 6, 7])])).toBe('Sunrise every day')
+    expect(scheduleSummary([sun('SUNRISE', 15, [6, 7]), row('07:00', [1])])).toBe('Sunrise +15 min Sat, Sun · 07:00 Mon')
+  })
+
   it('is empty without enabled schedules', () => {
     expect(scheduleSummary([])).toBe('')
     expect(scheduleSummary([row('07:00', [1], false)])).toBe('')

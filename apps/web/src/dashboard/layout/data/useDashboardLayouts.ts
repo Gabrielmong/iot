@@ -1,9 +1,18 @@
 import { useMutation, useQuery } from '@apollo/client/react'
 import { useCallback } from 'react'
+import type { DashboardLayoutsQuery } from '../../../gql/graphql'
 import type { LayoutEntry } from '../../lib/reconcileLayout'
 import { DASHBOARD_LAYOUTS, RESET_DASHBOARD_LAYOUT, SAVE_DASHBOARD_LAYOUT } from './documents'
 
 export type TabLayout = { entries: LayoutEntry[]; isDefault: boolean }
+
+/** A stored item as an entry: a device or a widget (an item with neither is skipped). */
+type StoredItem = DashboardLayoutsQuery['dashboardLayouts'][number]['items'][number]
+
+function toEntry({ deviceId, widget, size }: StoredItem): LayoutEntry[] {
+  if (deviceId) return [{ deviceId, size }]
+  return widget ? [{ widget, size }] : []
+}
 
 /** Resolve only once the refreshed layouts are in the cache, so leaving arrange mode never flashes the old one. */
 const refetch = { refetchQueries: [DASHBOARD_LAYOUTS], awaitRefetchQueries: true }
@@ -22,7 +31,7 @@ export function useDashboardLayouts() {
     (tab: string): TabLayout | undefined => {
       const found = layouts?.find((l) => l.tab === tab)
       if (!found) return undefined
-      return { entries: found.items.map(({ deviceId, size }) => ({ deviceId, size })), isDefault: found.isDefault }
+      return { entries: found.items.flatMap(toEntry), isDefault: found.isDefault }
     },
     [layouts],
   )

@@ -6,6 +6,7 @@ import type { DeviceFieldsFragment } from '../../gql/graphql'
 import { deviceFixture, lightFixture } from '../../test/deviceFixtures'
 import { createTestClient, failWith, type Handler, liveSubscription, reply } from '../../test/testClient'
 import { routineHandlers } from '../../test/routineFixtures'
+import { emptyWeather, weatherFixture } from '../../test/weatherFixtures'
 import { Dashboard } from '../Dashboard'
 
 const living = { id: 'r1', name: 'Living room', sortOrder: 1 }
@@ -16,12 +17,14 @@ const toaster = deviceFixture({ id: 'toaster', name: 'Toaster', kind: 'PLUG', on
 
 type Calls = { save: unknown[]; reset: unknown[]; setState: unknown[] }
 
-function setup(opts: { isAdmin?: boolean; devices?: DeviceFieldsFragment[]; extra?: Record<string, Handler>; isDefault?: boolean; room?: string } = {}) {
+type Opts = { isAdmin?: boolean; devices?: DeviceFieldsFragment[]; extra?: Record<string, Handler>; isDefault?: boolean; room?: string; items?: unknown[] }
+
+function setup(opts: Opts = {}) {
   const calls: Calls = { save: [], reset: [], setState: [] }
   const deviceState = liveSubscription()
   const devicesChanged = liveSubscription()
   let devices = opts.devices ?? [lamp, kettle]
-  const layout = { __typename: 'DashboardLayout', tab: 'all', isDefault: opts.isDefault ?? false, items: [] }
+  const layout = { __typename: 'DashboardLayout', tab: 'all', isDefault: opts.isDefault ?? false, items: opts.items ?? [] }
   const client = createTestClient({
     Devices: () => of({ data: { devices } }),
     Rooms: reply({ rooms: [living, kitchen].map((r) => ({ __typename: 'Room', ...r })) }),
@@ -29,6 +32,8 @@ function setup(opts: { isAdmin?: boolean; devices?: DeviceFieldsFragment[]; extr
     DevicesChanged: devicesChanged.handler,
     DashboardLayouts: reply({ dashboardLayouts: [layout] }),
     ...routineHandlers(),
+    Weather: reply({ weather: emptyWeather('NOT_CONFIGURED') }),
+    WeatherUpdated: liveSubscription().handler,
     SetDeviceState: (op) => {
       calls.setState.push(op.variables)
       return of({ data: { setDeviceState: lamp } })
@@ -224,3 +229,64 @@ describe('Arrange mode', () => {
     for (const tab of screen.queryAllByRole('tab')) expect(tab).not.toBeDisabled()
   })
 })
+
+const weatherIs = (weather: unknown) => ({ Weather: reply({ weather }) })
+const lampItem = { __typename: 'LayoutItem', deviceId: 'lamp', widget: null, size: 'S1x1' }
+const weatherItem = { __typename: 'LayoutItem', deviceId: null, widget: 'WEATHER', size: 'W2x1' }
+const firstSave = (calls: unknown[]) => (calls[0] as { items: unknown[] }).items
+
+describe('Arrange mode widgets', () => {
+  it('adds the weather widget first, wide, and saves it', async () => {
+    const { calls } = setup({ extra: weatherIs(weatherFixture()) })
+    await startArranging()
+    fireEvent.click(screen.getByRole('button', { name: 'Add widget' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Weather' }))
+    expect(sizeOf('Weather widget', '2×1')).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }))
+    await waitFor(() => expect(calls.save).toHaveLength(1))
+    expect(firstSave(calls.save)).toEqual([
+      { widget: 'WEATHER', size: 'W2x1' },
+      { deviceId: 'lamp', size: 'S1x1' },
+      { deviceId: 'kettle', size: 'S1x1' },
+    ])
+  })
+
+  it('offers only the widgets the tab does not have', async () => {
+    setup({ items: [weatherItem], extra: weatherIs(weatherFixture()) })
+    await startArranging()
+    fireEvent.click(screen.getByRole('button', { name: 'Add widget' }))
+    expect(await screen.findByRole('menuitem', { name: 'Sun' })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Weather' })).not.toBeInTheDocument()
+  })
+
+  it('removes a widget, and the save leaves it out', async () => {
+    const { calls } = setup({ items: [weatherItem, lampItem], extra: weatherIs(weatherFixture()) })
+    await startArranging()
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove Weather widget' }))
+    expect(screen.queryByRole('button', { name: 'Move Weather widget' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }))
+    await waitFor(() => expect(calls.save).toHaveLength(1))
+    expect(firstSave(calls.save)).toEqual([
+      { deviceId: 'lamp', size: 'S1x1' },
+      { deviceId: 'kettle', size: 'S1x1' },
+    ])
+  })
+
+  it('hides a saved weather widget while weather is off, but keeps it when arranging and saving', async () => {
+    const { calls } = setup({ items: [weatherItem, lampItem], extra: weatherIs(emptyWeather('DISABLED')) })
+    expect(await screen.findByRole('button', { name: 'Desk lamp' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Weather widget' })).not.toBeInTheDocument()
+    await startArranging()
+    expect(screen.getByRole('button', { name: 'Move Weather widget' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }))
+    await waitFor(() => expect(calls.save).toHaveLength(1))
+    expect(firstSave(calls.save)).toContainEqual({ widget: 'WEATHER', size: 'W2x1' })
+  })
+
+  it('shows the weather widget first on All when nothing is saved and weather works', async () => {
+    setup({ extra: { ...weatherIs(weatherFixture()), DashboardLayouts: reply({ dashboardLayouts: [] }) } })
+    const widget = await screen.findByRole('button', { name: 'Weather widget' })
+    expect(widget.closest('[data-tile-size]')).toHaveAttribute('data-tile-size', 'W2x1')
+  })
+})
+

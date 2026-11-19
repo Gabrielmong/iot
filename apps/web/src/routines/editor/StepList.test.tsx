@@ -154,4 +154,44 @@ describe('StepList', () => {
     fireEvent.click(within(step(1)).getByRole('button', { name: 'Remove step 1' }))
     expect(draft().steps.map((s) => s.kind)).toEqual(['SET'])
   })
+
+  it('adds an Only continue if step, starting at temperature above 25', async () => {
+    const { draft } = setup()
+    fireEvent.click(screen.getByRole('button', { name: 'Add weather check' }))
+    expect(await screen.findByRole('menuitem', { name: 'If… then run…' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Only continue if…' }))
+    expect(screen.getByRole('group', { name: /^Step 2: Only continue if…/ })).toBeInTheDocument()
+    expect(draft().steps[1]).toMatchObject({ kind: 'CONTINUE_IF', conditions: [{ metric: 'TEMP_C', op: 'ABOVE', value: 25 }] })
+  })
+
+  it('adds an If step and picks the routine it runs', async () => {
+    const { draft } = setup()
+    fireEvent.click(screen.getByRole('button', { name: 'Add weather check' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'If… then run…' }))
+    const card = screen.getByRole('group', { name: /^Step 2: If… then run… otherwise run…/ })
+    fireEvent.click(within(card).getByRole('button', { name: 'Pick the routine to run' }))
+    fireEvent.click(within(await screen.findByRole('dialog', { name: 'Pick a routine' })).getByRole('button', { name: 'Lock up' }))
+    expect(draft().steps[1]).toMatchObject({ kind: 'IF', thenRoutineId: 'lock', thenRoutineName: 'Lock up', elseRoutineId: null })
+    expect(within(card).getByText('Lock up')).toBeInTheDocument()
+  })
+
+  it('shows a removed routine in an If step', () => {
+    const initial = emptyDraft('PERSONAL')
+    initial.steps.push({ key: 'if1', kind: 'IF', conditions: [{ key: 'c', metric: 'SUN', op: 'IS_UP', value: null }], thenRoutineId: 'gone', thenRoutineName: null, elseRoutineId: null, elseRoutineName: null })
+    setup(initial)
+    expect(within(step(2)).getByText('Removed routine')).toBeInTheDocument()
+  })
+
+  it('offers only Is and Is not for Raining now', async () => {
+    const { draft } = setup()
+    fireEvent.click(screen.getByRole('button', { name: 'Add weather check' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Only continue if…' }))
+    fireEvent.mouseDown(within(step(2)).getByRole('combobox', { name: 'Check 1' }))
+    fireEvent.click(await screen.findByRole('option', { name: 'Raining now' }))
+    expect(draft().steps[1]).toMatchObject({ conditions: [{ metric: 'RAINING_NOW', op: 'IS', value: null }] })
+    fireEvent.mouseDown(within(step(2)).getByRole('combobox', { name: 'Check 1 is' }))
+    const options = (await screen.findAllByRole('option')).map((o) => o.textContent)
+    expect(options).toEqual(['Is', 'Is not'])
+    expect(screen.queryByRole('spinbutton', { hidden: true })).not.toBeInTheDocument()
+  })
 })

@@ -6,6 +6,7 @@ export const DEVICES_CHANGED = "DEVICES_CHANGED";
 export const ROUTINES_CHANGED = "ROUTINES_CHANGED";
 export const ROUTINE_RUN = "ROUTINE_RUN";
 export const CAMERA_GROUPS_CHANGED = "CAMERA_GROUPS_CHANGED";
+export const WEATHER_UPDATED = "WEATHER_UPDATED";
 
 export type DeviceStatePayload = { deviceId: string; state: DeviceState };
 /** key: a routine id, or "try:<userId>" for a draft run. */

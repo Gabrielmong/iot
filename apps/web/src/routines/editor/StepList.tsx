@@ -11,14 +11,17 @@ import { useCallableRoutines } from '../data/useCallableRoutines'
 import type { Device, Room } from '../../dashboard/types'
 import type { Draft } from '../lib/draft'
 import { usableDevices } from '../lib/usableDevices'
-import { addRoutineStep, addStep, moveStep, removeAction, removeStep, setStepRoutine, setWait, upsertAction } from '../lib/draftOps'
+import { addConditionStep, addRoutineStep, addStep, moveStep, removeStep, setIfRoutine, setStepRoutine } from '../lib/draftOps'
+import { STEP_TITLE } from '../lib/stepTitle'
+import { AddCheckButton } from './AddCheckButton'
 import { RoutinePickerDialog } from './RoutinePickerDialog'
-import { RoutineStepCard } from './RoutineStepCard'
-import { SetStepCard } from './SetStepCard'
 import { SortableStep } from './SortableStep'
-import { WaitStepCard } from './WaitStepCard'
+import { type PickSlot, StepBody } from './StepBody'
 
 type Props = { draft: Draft; devices: readonly Device[]; rooms?: readonly Room[]; routineId?: string | null; onChange: (draft: Draft) => void }
+
+/** The open routine picker: for a new Run routine step (`key` null), or a step's routine / If branch. */
+type Picking = { key: string | null; slot: PickSlot }
 
 /**
  * The routine's steps in order. Drag (mouse after 6 px, touch after a 200 ms hold) or use the arrow
@@ -26,8 +29,7 @@ type Props = { draft: Draft; devices: readonly Device[]; rooms?: readonly Room[]
  */
 export function StepList({ draft, devices, rooms = [], routineId = null, onChange }: Props) {
   const { routines } = useCallableRoutines(draft.scope, routineId)
-  // null = closed, 'add' = adding a step, otherwise the key of the step being changed
-  const [picking, setPicking] = useState<string | null>(null)
+  const [picking, setPicking] = useState<Picking | null>(null)
   const usable = usableDevices(devices)
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
@@ -37,6 +39,14 @@ export function StepList({ draft, devices, rooms = [], routineId = null, onChang
   const onDragEnd = ({ active, over }: DragEndEvent) => {
     if (!over || active.id === over.id) return
     onChange(moveStep(draft, keys.indexOf(String(active.id)), keys.indexOf(String(over.id))))
+  }
+  const pick = (routine: { id: string; name: string }) => {
+    if (!picking) return
+    const { key, slot } = picking
+    if (key === null) onChange(addRoutineStep(draft, routine))
+    else if (slot === 'routine') onChange(setStepRoutine(draft, key, routine))
+    else onChange(setIfRoutine(draft, key, slot, routine))
+    setPicking(null)
   }
 
   return (
@@ -49,24 +59,12 @@ export function StepList({ draft, devices, rooms = [], routineId = null, onChang
               id={s.key}
               number={i + 1}
               count={draft.steps.length}
-              title={s.kind === 'WAIT' ? 'Wait' : s.kind === 'ROUTINE' ? 'Run routine' : 'Set devices'}
+              title={STEP_TITLE[s.kind]}
               dashed={s.kind === 'WAIT'}
               onMove={(delta) => onChange(moveStep(draft, i, i + delta))}
               onRemove={() => onChange(removeStep(draft, s.key))}
             >
-              {s.kind === 'WAIT' ? (
-                <WaitStepCard minutes={s.minutes} onChange={(m) => onChange(setWait(draft, s.key, m))} />
-              ) : s.kind === 'ROUTINE' ? (
-                <RoutineStepCard name={s.routineName} onChange={() => setPicking(s.key)} />
-              ) : (
-                <SetStepCard
-                  actions={s.actions}
-                  devices={usable}
-                  rooms={rooms}
-                  onUpsert={(a) => onChange(upsertAction(draft, s.key, a))}
-                  onRemove={(id) => onChange(removeAction(draft, s.key, id))}
-                />
-              )}
+              <StepBody step={s} draft={draft} devices={usable} rooms={rooms} onChange={onChange} onPick={(slot) => setPicking({ key: s.key, slot })} />
             </SortableStep>
           ))}
         </SortableContext>
@@ -78,20 +76,12 @@ export function StepList({ draft, devices, rooms = [], routineId = null, onChang
         <Button variant="outlined" startIcon={<TimerOutlinedIcon />} onClick={() => onChange(addStep(draft, 'WAIT'))}>
           Add wait
         </Button>
-        <Button variant="outlined" startIcon={<PlaylistPlayOutlinedIcon />} onClick={() => setPicking('add')}>
+        <Button variant="outlined" startIcon={<PlaylistPlayOutlinedIcon />} onClick={() => setPicking({ key: null, slot: 'routine' })}>
           Add routine
         </Button>
+        <AddCheckButton onAdd={(kind) => onChange(addConditionStep(draft, kind))} />
       </Box>
-      {picking !== null && (
-        <RoutinePickerDialog
-          routines={routines}
-          onPick={(r) => {
-            onChange(picking === 'add' ? addRoutineStep(draft, r) : setStepRoutine(draft, picking, r))
-            setPicking(null)
-          }}
-          onClose={() => setPicking(null)}
-        />
-      )}
+      {picking !== null && <RoutinePickerDialog routines={routines} onPick={pick} onClose={() => setPicking(null)} />}
     </Stack>
   )
 }

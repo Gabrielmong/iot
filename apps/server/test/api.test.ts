@@ -78,7 +78,8 @@ describe("schema", () => {
     const offending = __schema.types
       .filter((t) => !t.name.startsWith("__") && t.name !== "Mutation" && (t.kind === "OBJECT" || t.kind === "INTERFACE"))
       .flatMap((t) => ("fields" in t ? t.fields : []).map((f) => `${t.name}.${f.name}`))
-      .filter((name) => /key|secret|password|pin|hash/i.test(name.split(".")[1]) && !["AdminDevice.hasKey", "User.hasPin", "Mutation.changeMyPin"].includes(name));
+      // Query.mapsApiKey: admin-only, and a Maps JavaScript key is browser-side by design (Google restricts it by referrer).
+      .filter((name) => /key|secret|password|pin|hash/i.test(name.split(".")[1]) && !["AdminDevice.hasKey", "User.hasPin", "Mutation.changeMyPin", "Query.mapsApiKey"].includes(name));
     expect(offending).toEqual([]);
   });
 });

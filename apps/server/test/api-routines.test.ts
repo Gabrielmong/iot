@@ -8,7 +8,7 @@ afterAll(closeDb);
 
 const FIELDS = `id name scope editable audience room { id } owner { id }
   steps { kind waitMinutes actions { deviceId on brightness color { r g b } colorTempK } }
-  schedules { time days enabled }`;
+  schedules { time anchor offsetMinutes days enabled }`;
 const LIST = `{ routines { ${FIELDS} } }`;
 const OTHERS = `{ otherRoutines { ${FIELDS} } }`;
 const ONE = `query($id: ID!) { routine(id: $id) { ${FIELDS} } }`;
@@ -44,6 +44,22 @@ describe("routines API", () => {
     expect(updated).toMatchObject({ name: "Film", schedules: [] });
     expect((await h.ok(ann.token, DELETE, { id: created.id })).deleteRoutine).toBe(true);
     expect((await h.ok(ann.token, LIST)).routines).toEqual([]);
+  });
+
+  it("round-trips a sunset schedule, and clock schedules read back as CLOCK", async () => {
+    h = await ApiHarness.start();
+    const ann = await h.user("Ann");
+    const lamp = await h.device();
+    await h.grant(ann.id, lamp);
+    const schedules = [
+      { anchor: "SUNSET", offsetMinutes: -30, time: null, days: [1, 2] },
+      { time: "07:00", days: [3] },
+    ];
+    const created = (await h.ok(ann.token, CREATE, { input: input({ steps: [setOn(lamp)], schedules }) })).createRoutine;
+    expect(created.schedules).toEqual([
+      { anchor: "SUNSET", offsetMinutes: -30, time: null, days: [1, 2], enabled: true },
+      { anchor: "CLOCK", offsetMinutes: 0, time: "07:00", days: [3], enabled: true },
+    ]);
   });
 
   it("a user can't put an ungranted device in a routine", async () => {
@@ -296,5 +312,47 @@ describe("routines that run other routines", () => {
     expect(names(await h.ok(ann.token, CALLABLE, { scope: "PERSONAL" }))).toEqual(["Abe", "Open", "Zed"]);
     expect(names(await h.ok(ann.token, CALLABLE, { scope: "PERSONAL", routineId: zed }))).toEqual(["Abe", "Open"]);
     expect(names(await h.ok(root.token, CALLABLE, { scope: "SHARED" }))).toEqual(["Hidden", "Open"]);
+  });
+});
+
+describe("condition steps", () => {
+  const STEPS = `steps { kind conditions { metric op value } thenRoutineId thenRoutineName elseRoutineId elseRoutineName }`;
+  const CREATE_STEPS = `mutation($input: RoutineInput!) { createRoutine(input: $input) { id ${STEPS} } }`;
+  const hot = [{ metric: "TEMP_C", op: "ABOVE", value: 28 }];
+
+  it("round-trips Continue-only-if and If steps", async () => {
+    h = await ApiHarness.start();
+    const ann = await h.user("Ann");
+    const lamp = await h.device();
+    await h.grant(ann.id, lamp);
+    const fan = (await h.ok(ann.token, CREATE, { input: input({ name: "Fan", steps: [setOn(lamp)] }) })).createRoutine.id;
+    const steps = [{ kind: "CONTINUE_IF", conditions: [{ metric: "SUN", op: "IS_DOWN" }] }, { kind: "IF", conditions: hot, thenRoutineId: fan, elseRoutineId: null }];
+    const created = (await h.ok(ann.token, CREATE_STEPS, { input: input({ steps }) })).createRoutine;
+    expect(created.steps).toEqual([
+      { kind: "CONTINUE_IF", conditions: [{ metric: "SUN", op: "IS_DOWN", value: null }], thenRoutineId: null, thenRoutineName: null, elseRoutineId: null, elseRoutineName: null },
+      { kind: "IF", conditions: [{ metric: "TEMP_C", op: "ABOVE", value: 28 }], thenRoutineId: fan, thenRoutineName: "Fan", elseRoutineId: null, elseRoutineName: null },
+    ]);
+  });
+
+  it("an If can't run a routine the owner can't use", async () => {
+    h = await ApiHarness.start();
+    const ann = await h.user("Ann");
+    const bob = await h.user("Bob");
+    const lamp = await h.device();
+    await h.grant(bob.id, lamp);
+    const bobs = (await h.ok(bob.token, CREATE, { input: input({ name: "Bobs", steps: [setOn(lamp)] }) })).createRoutine.id;
+    const r = await h.gql(ann.token, CREATE, { input: input({ steps: [{ kind: "IF", conditions: hot, thenRoutineId: bobs }] }) });
+    expect(messages(r)).toEqual(["You can't run Bobs from this routine"]);
+  });
+
+  it("an If can't loop back to the routine", async () => {
+    h = await ApiHarness.start();
+    const ann = await h.user("Ann");
+    const lamp = await h.device();
+    await h.grant(ann.id, lamp);
+    const a = (await h.ok(ann.token, CREATE, { input: input({ name: "A", steps: [setOn(lamp)] }) })).createRoutine.id;
+    const b = (await h.ok(ann.token, CREATE, { input: input({ name: "B", steps: [callStep(a)] }) })).createRoutine.id;
+    const loop = await h.gql(ann.token, UPDATE, { id: a, input: input({ name: "A", steps: [{ kind: "IF", conditions: hot, thenRoutineId: b, elseRoutineId: null }] }) });
+    expect(messages(loop)).toEqual(["A routine can't run itself (A → B → A)"]);
   });
 });

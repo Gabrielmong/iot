@@ -1,5 +1,5 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
-import { isDue, slotsBetween } from "./schedule.js";
+import { isDue, slotDate, slotsBetween, type Slot, type SunMinutes } from "./schedule.js";
 
 type Timer = { cancel(): void };
 
@@ -8,6 +8,8 @@ export type SchedulerDeps = {
   run: (routineId: string) => Promise<void>;
   now: () => Date;
   log: Pick<Console, "error">;
+  /** Sunrise/sunset for a local day; null without a home location. Without it, sun schedules never fire. */
+  sunMinutes?: (day: Date) => SunMinutes | null;
   setTimer?: (fn: () => void, ms: number) => Timer;
 };
 
@@ -62,11 +64,19 @@ export class RoutineScheduler {
     this.timer = this.setTimer(() => void this.tick(), ms);
   }
 
-  private async runDue(slots: ReturnType<typeof slotsBetween>): Promise<void> {
+  private async runDue(slots: Slot[]): Promise<void> {
     const days = [...new Set(slots.map((s) => s.day))];
     const rows = await this.deps.prisma.routineSchedule.findMany({ where: { enabled: true, days: { hasSome: days } } });
+    const needsSun = rows.some((r) => r.anchor !== "CLOCK");
+    const sunByDate = new Map<string, SunMinutes | null>();
+    const sunFor = (slot: Slot): SunMinutes | null => {
+      const date = slot.key.slice(0, 10);
+      if (!sunByDate.has(date)) sunByDate.set(date, this.deps.sunMinutes?.(slotDate(slot)) ?? null);
+      return sunByDate.get(date) ?? null;
+    };
     for (const slot of slots) {
-      const due = new Set(rows.filter((r) => isDue(r, slot)).map((r) => r.routineId));
+      const sun = needsSun ? sunFor(slot) : null;
+      const due = new Set(rows.filter((r) => isDue(r, slot, sun)).map((r) => r.routineId));
       for (const routineId of due) {
         try {
           await this.deps.run(routineId);

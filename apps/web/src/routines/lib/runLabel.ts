@@ -24,6 +24,7 @@ const REASONS: Record<ProblemReason, string> = {
   REMOVED: 'removed',
   ROUTINE_REMOVED: 'routine removed',
   NESTED_TOO_DEEP: 'too many routines inside each other',
+  WEATHER_UNAVAILABLE: 'weather unavailable',
 }
 
 export const reasonText = (reason: ProblemReason) => REASONS[reason]
@@ -31,9 +32,11 @@ export const reasonText = (reason: ProblemReason) => REASONS[reason]
 /**
  * "Lamp: couldn't reach it"; inside a called routine "Lock up › Lamp: couldn't reach it"; a problem with
  * the call itself has no device ("Routine: routine removed"; inside a called routine "Lock up › Run routine: routine removed").
+ * A weather check that couldn't run: "Weather unavailable" ("Lock up › Weather unavailable").
  */
 export function problemText(p: { deviceName: string | null; reason: ProblemReason; routineName: string | null }): string {
   if (p.reason === 'NESTED_TOO_DEEP') return REASONS.NESTED_TOO_DEEP
+  if (p.reason === 'WEATHER_UNAVAILABLE') return `${p.routineName ? `${p.routineName} › ` : ''}Weather unavailable`
   if (p.deviceName == null) return p.routineName ? `${p.routineName} › Run routine: ${REASONS[p.reason]}` : `Routine: ${REASONS[p.reason]}`
   const where = p.routineName ? `${p.routineName} › ` : ''
   return `${where}${p.deviceName}: ${REASONS[p.reason]}`

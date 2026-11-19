@@ -93,6 +93,15 @@ Add each PC with **Admin > Devices > Add PC** (name, room, MAC, optional IP) and
 
 **Upgrading:** this release adds a database migration — re-run `install-service.ps1` (or `pnpm db:deploy` for a manual run) after pulling.
 
+### Weather and maps (Xweather, Google Maps)
+Weather on the dashboard, the phone home screen and the **Weather** page, plus sunrise/sunset schedules and weather checks in routines, need two integrations and the home location:
+
+1. **Xweather:** in **Admin > Integrations > Xweather** enter the client ID and the client secret (two separate fields), save, then press **Test connection**.
+2. **Google Maps:** in **Admin > Integrations > Google Maps** enter the API key. In Google Cloud, the key's project needs billing enabled; restrict the key to the **Maps JavaScript API** and **Places API**, and to HTTP referrers `http://192.168.0.100:*/*` (add your dev address too, e.g. `http://localhost:*/*`).
+3. **Home location:** in **Admin > Settings**, search for the address or drag the pin onto the house, then choose the units and how often the weather refreshes.
+
+Keys are stored encrypted and never shown again after saving. Until the location is set, weather widgets stay hidden and sun schedules show "Needs the home location". This release adds database migrations (weather settings, weather snapshot, sun schedules, routine run notes): re-run `install-service.ps1` or `pnpm db:deploy` after pulling.
+
 ## 6. Acceptance checklist (from an Android phone at `http://<server-ip>:4000`)
 
 - [ ] `Get-Service HomeControl` is Running; after a reboot it is still Running.

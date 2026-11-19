@@ -2,6 +2,7 @@ import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import { coded } from "../src/api-errors.js";
 import { ApiHarness, codes } from "./api-harness.js";
 import { closeDb } from "./helpers.js";
+import { SAMPLE_WEATHER } from "./fixtures/weather.js";
 
 let h: ApiHarness;
 afterEach(() => h?.stop());
@@ -299,3 +300,40 @@ describe("routine runs", () => {
     });
   });
 });
+
+describe("condition steps", () => {
+  const PIN = `mutation { updateWeatherSettings(input: { lat: 9.93, lng: -84.08, refreshMinutes: 15, staleMinutes: 45, enabled: true }) { lat } }`;
+  const CREDS = `mutation { setXweatherCredentials(clientId: "id", clientSecret: "secret") { xweatherConfigured } }`;
+  const NOTES = `query($id: ID!) { routine(id: $id) { lastRun { status notes { step routineName kind conditions ranRoutineName } } } }`;
+  const warm = [{ metric: "TEMP_C", op: "ABOVE", value: 20 }];
+
+  it("the last run keeps its notes; a branch routine the viewer can't see is Another routine", async () => {
+    h = await ApiHarness.start({ weatherFetch: async () => SAMPLE_WEATHER });
+    const root = await h.user("Root", "ADMIN");
+    const ann = await h.user("Ann");
+    const lamp = await h.device();
+    await h.grant(ann.id, lamp);
+    await h.ok(root.token, CREDS);
+    await h.ok(root.token, PIN);
+    const secret = (await h.ok(root.token, CREATE, { input: input({ name: "Secret", scope: "SHARED", steps: [setOn(lamp)], audience: [] }) })).createRoutine.id;
+    const top = (await h.ok(root.token, CREATE, { input: input({ name: "Top", scope: "SHARED", steps: [{ kind: "IF", conditions: warm, thenRoutineId: secret }], audience: [ann.id] }) })).createRoutine.id;
+    await h.ok(root.token, RUN, { id: top });
+    await lastRun(root.token, top, "OK");
+    const note = { step: 0, routineName: null, kind: "IF_MET", conditions: "temperature above 20°" };
+    expect((await h.ok(root.token, NOTES, { id: top })).routine.lastRun.notes).toEqual([{ ...note, ranRoutineName: "Secret" }]);
+    expect((await h.ok(ann.token, NOTES, { id: top })).routine.lastRun.notes).toEqual([{ ...note, ranRoutineName: "Another routine" }]);
+  });
+
+  it("without weather the check is a WEATHER_UNAVAILABLE problem", async () => {
+    h = await ApiHarness.start();
+    const ann = await h.user("Ann");
+    const lamp = await h.device();
+    await h.grant(ann.id, lamp);
+    const id = (await h.ok(ann.token, CREATE, { input: input({ steps: [{ kind: "CONTINUE_IF", conditions: warm }, setOn(lamp)] }) })).createRoutine.id;
+    await h.ok(ann.token, RUN, { id });
+    const run = await lastRun(ann.token, id, "FAILED");
+    expect(run.problems).toEqual([{ deviceName: null, reason: "WEATHER_UNAVAILABLE" }]);
+    expect(h.drivers.KASA.commands).toEqual([]);
+  });
+});
+

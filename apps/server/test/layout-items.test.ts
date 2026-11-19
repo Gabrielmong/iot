@@ -25,4 +25,18 @@ describe("validateLayoutItems", () => {
     const items: LayoutItem[] = [{ deviceId: "b", size: "W2x1" }, { deviceId: "a", size: "T1x2" }];
     expect(validateLayoutItems(items)).toEqual(items);
   });
+
+  it("accepts widgets next to devices", () => {
+    const items: LayoutItem[] = [{ widget: "WEATHER", size: "W2x1" }, { deviceId: "a", size: "S1x1" }, { widget: "SUN", size: "S1x1" }];
+    expect(validateLayoutItems(items)).toEqual(items);
+  });
+
+  it("rejects an item with both a device and a widget, or neither", () => {
+    expect(code(() => validateLayoutItems([{ deviceId: "a", widget: "SUN", size: "S1x1" } as unknown as LayoutItem]))).toBe("BAD_USER_INPUT");
+    expect(code(() => validateLayoutItems([{ size: "S1x1" } as unknown as LayoutItem]))).toBe("BAD_USER_INPUT");
+  });
+
+  it("rejects a widget kind listed twice", () => {
+    expect(code(() => validateLayoutItems([{ widget: "WEATHER", size: "S1x1" }, { widget: "WEATHER", size: "L2x2" }]))).toBe("BAD_USER_INPUT");
+  });
 });

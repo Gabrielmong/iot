@@ -12,9 +12,12 @@ import { saveLastRun, markInterrupted } from "./run-store.js";
 import { RoutineRunner, type RunAs, type RunSnapshot } from "./runner.js";
 import type { RoutineStep } from "./steps.js";
 import { getRoutine } from "./store.js";
+import type { WeatherFacts } from "../weather/service.js";
 
 export type RoutineServiceOptions = {
   now: () => Date;
+  /** The weather and location condition steps check. */
+  weather: () => WeatherFacts;
   log: Pick<Console, "error">;
   /** Tests replace the real timer. */
   delay?: typeof cancellableDelay;
@@ -57,6 +60,7 @@ export class RoutineService {
         }),
       delay: opts.delay ?? cancellableDelay,
       now: opts.now,
+      weather: opts.weather,
       onChange: (key, run) => this.enqueue(key, run),
     });
   }

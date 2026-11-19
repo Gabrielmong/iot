@@ -7,10 +7,19 @@ import type { RoutineStep } from "../routines/steps.js";
 import { factsOf, type RoutineRow } from "../routines/store.js";
 import { toApiRoom, toApiUser } from "./mappers.js";
 
+const NO_CONDITIONS = { conditions: [], thenRoutineId: null, thenRoutineName: null, elseRoutineId: null, elseRoutineName: null };
+
 function toApiStep(step: RoutineStep, exists: ReadonlySet<string>, routineNames: ReadonlyMap<string, string>) {
-  if (step.kind === "WAIT") return { kind: "WAIT", waitMinutes: step.minutes, actions: [] };
-  if (step.kind === "ROUTINE") return { kind: "ROUTINE", waitMinutes: null, routineId: step.routineId, routineName: routineNames.get(step.routineId) ?? null, actions: [] };
+  const nameOf = (id: string | null) => (id ? (routineNames.get(id) ?? null) : null);
+  if (step.kind === "WAIT") return { ...NO_CONDITIONS, kind: "WAIT", waitMinutes: step.minutes, actions: [] };
+  if (step.kind === "ROUTINE") return { ...NO_CONDITIONS, kind: "ROUTINE", waitMinutes: null, routineId: step.routineId, routineName: nameOf(step.routineId), actions: [] };
+  if (step.kind === "CONTINUE_IF") return { ...NO_CONDITIONS, kind: "CONTINUE_IF", waitMinutes: null, conditions: step.conditions, actions: [] };
+  if (step.kind === "IF") {
+    const branches = { thenRoutineId: step.thenRoutineId, thenRoutineName: nameOf(step.thenRoutineId), elseRoutineId: step.elseRoutineId, elseRoutineName: nameOf(step.elseRoutineId) };
+    return { ...branches, kind: "IF", waitMinutes: null, conditions: step.conditions, actions: [] };
+  }
   return {
+    ...NO_CONDITIONS,
     kind: "SET",
     waitMinutes: null,
     actions: step.actions.map((a) => ({ deviceId: a.deviceId, deviceExists: exists.has(a.deviceId), on: a.on ?? null, brightness: a.brightness ?? null, color: a.color ?? null, colorTempK: a.colorTempK ?? null, pcPower: a.pcPower ?? null })),
@@ -31,8 +40,14 @@ export function toApiRoutine(row: RoutineRow, viewer: Pick<User, "id" | "role">,
     owner: row.owner && toApiUser(row.owner),
     steps: (row.steps as RoutineStep[]).map((s) => toApiStep(s, existing, routineNames)),
     schedules: [...row.schedules]
-      .sort((a, b) => a.minuteOfDay - b.minuteOfDay)
-      .map((s) => ({ time: formatTime(s.minuteOfDay), days: s.days, enabled: s.enabled })),
+      .sort((a, b) => a.minuteOfDay - b.minuteOfDay || a.anchor.localeCompare(b.anchor) || a.offsetMinutes - b.offsetMinutes)
+      .map((s) => ({
+        time: s.anchor === "CLOCK" ? formatTime(s.minuteOfDay) : null,
+        anchor: s.anchor,
+        offsetMinutes: s.offsetMinutes,
+        days: s.days,
+        enabled: s.enabled,
+      })),
     audience: viewer.role === "ADMIN" ? facts.audience : [],
     editable: canEditRoutine(viewer, facts),
     lastRun: row.lastRun && viewRun(toSnapshot(row.lastRun), canSee, canSeeRoutineName),

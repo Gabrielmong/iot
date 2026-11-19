@@ -5,22 +5,26 @@ import type { ServiceDeps, TuyaCloudCredentials, TuyaRegion } from "./deps.js";
 import { hasSettings, readEncryptedSettings, writeEncryptedSettings } from "./settings-store.js";
 import { markSynced, readSyncTimes, SyncTimeKey, type SyncTimes } from "./sync-times.js";
 
-export type IntegrationStatus = { tuyaCloudConfigured: boolean; kasaConfigured: boolean; swannConfigured: boolean } & SyncTimes;
+export type IntegrationStatus = { tuyaCloudConfigured: boolean; kasaConfigured: boolean; swannConfigured: boolean; xweatherConfigured: boolean; googleMapsConfigured: boolean } & SyncTimes;
 
 const TUYA_KEYS = [SettingKey.tuyaAccessId, SettingKey.tuyaAccessSecret, SettingKey.tuyaRegion] as const;
 const KASA_KEYS = [SettingKey.kasaUsername, SettingKey.kasaPassword] as const;
 const SWANN_KEYS = [SettingKey.swannHost, SettingKey.swannUsername, SettingKey.swannPassword] as const;
+const XWEATHER_KEYS = [SettingKey.xweatherClientId, SettingKey.xweatherClientSecret] as const;
+const MAPS_KEYS = [SettingKey.googleMapsApiKey] as const;
 const TUYA_REGIONS: readonly TuyaRegion[] = ["us", "eu", "cn", "in"];
 
 /** Whether each integration's credentials are stored (never the credentials themselves), and when each last synced. */
 export async function integrationStatus(prisma: PrismaClient): Promise<IntegrationStatus> {
-  const [tuyaCloudConfigured, kasaConfigured, swannConfigured, times] = await Promise.all([
+  const [tuyaCloudConfigured, kasaConfigured, swannConfigured, xweatherConfigured, googleMapsConfigured, times] = await Promise.all([
     hasSettings(prisma, TUYA_KEYS),
     hasSettings(prisma, KASA_KEYS),
     hasSettings(prisma, SWANN_KEYS),
+    hasSettings(prisma, XWEATHER_KEYS),
+    hasSettings(prisma, MAPS_KEYS),
     readSyncTimes(prisma),
   ]);
-  return { tuyaCloudConfigured, kasaConfigured, swannConfigured, ...times };
+  return { tuyaCloudConfigured, kasaConfigured, swannConfigured, xweatherConfigured, googleMapsConfigured, ...times };
 }
 
 export async function setTuyaCloud(
@@ -69,7 +73,7 @@ function isRegion(value: string): value is TuyaRegion {
   return (TUYA_REGIONS as readonly string[]).includes(value);
 }
 
-function required(value: string, what: string): string {
+export function required(value: string, what: string): string {
   const trimmed = value.trim();
   if (!trimmed) throw badInput(`${what} is required`);
   return trimmed;

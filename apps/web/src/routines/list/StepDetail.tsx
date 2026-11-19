@@ -3,6 +3,7 @@ import Chip from '@mui/material/Chip'
 import Typography from '@mui/material/Typography'
 import { useId } from 'react'
 import { describeAction } from '../lib/describeAction'
+import { describeConditions } from '../lib/describeCondition'
 import { reasonText } from '../lib/runLabel'
 import { clockTime, timeLeft, type StepState } from '../lib/runProgress'
 import type { Routine, RoutineRun } from '../types'
@@ -60,7 +61,9 @@ export function StepDetail({ index, step, state, run, deviceNames, now }: Props)
           {timeLeft(run.waitUntil, now)} · next step at {clockTime(run.waitUntil)}
         </Typography>
       )}
-      {step.kind === 'ROUTINE' && showResults && <CalledRoutineProblems problems={run?.problems.filter((p) => p.step === index) ?? []} />}
+      {(step.kind === 'ROUTINE' || step.kind === 'IF' || step.kind === 'CONTINUE_IF') && showResults && (
+        <CalledRoutineProblems problems={run?.problems.filter((p) => p.step === index) ?? []} />
+      )}
       {step.kind === 'SET' &&
         step.actions.map((a) => {
           const name = deviceNames.get(a.deviceId) ?? 'Another device'
@@ -79,5 +82,10 @@ export function StepDetail({ index, step, state, run, deviceNames, now }: Props)
 function stepTitle(step: Routine['steps'][number]): string {
   if (step.kind === 'WAIT') return `Wait ${step.waitMinutes} min`
   if (step.kind === 'ROUTINE') return step.routineName ? `Run ${step.routineName}` : 'Removed routine'
+  if (step.kind === 'CONTINUE_IF') return `Only continue if ${describeConditions(step.conditions)}`
+  if (step.kind === 'IF') {
+    const otherwise = step.elseRoutineId ? `, otherwise run ${step.elseRoutineName ?? 'a removed routine'}` : ''
+    return `If ${describeConditions(step.conditions)} run ${step.thenRoutineName ?? 'a removed routine'}${otherwise}`
+  }
   return 'Set devices'
 }

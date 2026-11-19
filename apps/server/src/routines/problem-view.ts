@@ -34,6 +34,7 @@ export function viewRun(run: RunSnapshot, canSee: DeviceVisibility, canSeeRoutin
     endedAt: run.endedAt?.toISOString() ?? null,
     problems: problems.map((p) => ({ step: p.step, deviceId: p.deviceId, deviceName: p.deviceName, reason: p.reason, routineName: routineName(p.routineName) })),
     hiddenProblems: run.problems.length - problems.length,
+    notes: run.notes.map((n) => ({ ...n, routineName: routineName(n.routineName), ranRoutineName: routineName(n.ranRoutineName) })),
     currentStep: run.currentStep,
     currentPath: run.currentPath.map((e) => ({ ...e, routineName: routineName(e.routineName) as string })),
     waitUntil: run.waitUntil?.toISOString() ?? null,

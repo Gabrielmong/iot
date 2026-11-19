@@ -7,6 +7,7 @@ import PlaylistPlayOutlinedIcon from '@mui/icons-material/PlaylistPlayOutlined'
 import RocketLaunchOutlinedIcon from '@mui/icons-material/RocketLaunchOutlined'
 import TuneOutlinedIcon from '@mui/icons-material/TuneOutlined'
 import VideocamOutlinedIcon from '@mui/icons-material/VideocamOutlined'
+import WbSunnyOutlinedIcon from '@mui/icons-material/WbSunnyOutlined'
 import type { SvgIconComponent } from '@mui/icons-material'
 
 export type NavLink = {
@@ -23,6 +24,7 @@ export type NavLink = {
 
 export const MAIN_LINKS: readonly NavLink[] = [
   { to: '/', label: 'Dashboard', Icon: GridViewOutlinedIcon, exact: true, alsoActive: ['/devices/'] },
+  { to: '/weather', label: 'Weather', Icon: WbSunnyOutlinedIcon },
   { to: '/cameras', label: 'Cameras', Icon: VideocamOutlinedIcon, hideForGuests: true },
   { to: '/routines', label: 'Routines', Icon: PlaylistPlayOutlinedIcon },
 ]

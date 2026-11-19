@@ -1,9 +1,9 @@
-import { routineFixture, runFixture } from '../../test/routineFixtures'
+import { routineFixture, runFixture, NO_CONDITION_FIELDS } from '../../test/routineFixtures'
 import { clockTime, currentStepLabel, stepProgress, stepStates, timeLeft } from './runProgress'
 
 const NOW = new Date(2026, 10, 9, 20, 36, 0)
 const routine = routineFixture({ deviceIds: ['lamp', 'tv'] })
-routine.steps.push({ kind: 'WAIT', waitMinutes: 45, routineId: null, routineName: null, actions: [] })
+routine.steps.push({ ...NO_CONDITION_FIELDS, kind: 'WAIT', waitMinutes: 45, routineId: null, routineName: null, actions: [] })
 routine.steps.push({ ...routine.steps[0]! })
 
 const at = (h: number, m: number, s = 0) => new Date(2026, 10, 9, h, m, s).toISOString()
@@ -29,7 +29,7 @@ describe('runProgress', () => {
   })
 
   it('names a Run routine step that has just started', () => {
-    const steps = [...routine.steps.slice(0, 2), { kind: 'ROUTINE' as const, waitMinutes: null, routineId: 'x', routineName: 'Lock up', actions: [] }]
+    const steps = [...routine.steps.slice(0, 2), { ...NO_CONDITION_FIELDS, kind: 'ROUTINE' as const, waitMinutes: null, routineId: 'x', routineName: 'Lock up', actions: [] }]
     expect(stepProgress(steps, running(2), NOW)!.label).toBe('Step 3 of 3 · Running Lock up…')
   })
 

@@ -31,33 +31,50 @@ type TvInfo { apps: [TvApp!]!  canPowerOn: Boolean! }  # canPowerOn: false when 
 type AdminDevice { id: ID!  name: String!  brand: Brand!  kind: DeviceKind!  model: String  ip: String  adopted: Boolean!  room: Room  parentId: ID  status: DeviceStatus!  hasKey: Boolean!  lastSeenAt: String  online: Boolean!  testable: Boolean!  testBlockedReason: String  mac: String } # mac: computers only; testable: an un-adopted device the admin can switch on/off to identify it; otherwise testBlockedReason says why
 type DeviceTrial { deviceId: ID!  state: DeviceState! } # an un-adopted device linked in memory so the admin can switch it to identify it
 type AuthPayload { token: String!  user: User! }
-type IntegrationStatus { tuyaCloudConfigured: Boolean!  kasaConfigured: Boolean!  swannConfigured: Boolean!  tuyaLastSyncAt: String  kasaLastSavedAt: String  swannLastSyncAt: String } # ISO times of the last successful key sync / sign-in / recorder probe
+enum WeatherStatus { OK NO_LOCATION NOT_CONFIGURED DISABLED ERROR }
+enum WeatherCondition { CLEAR PARTLY_CLOUDY CLOUDY FOG DRIZZLE RAIN STORM SNOW WINDY UNKNOWN }
+type CurrentWeather { tempC: Float!  feelsLikeC: Float!  humidity: Int!  windKph: Float!  condition: WeatherCondition!  isDay: Boolean!  precipMm: Float! }
+type HourlyWeather { time: String!  tempC: Float!  condition: WeatherCondition!  rainChance: Int! }
+type DailyWeather { date: String!  minC: Float!  maxC: Float!  condition: WeatherCondition!  rainChance: Int! } # date: YYYY-MM-DD local
+type SunTimes { sunrise: String  sunset: String } # today's, ISO; null in polar day/night
+type Weather { status: WeatherStatus!  updatedAt: String  stale: Boolean!  current: CurrentWeather  hourly: [HourlyWeather!]!  daily: [DailyWeather!]!  sun: SunTimes } # never the coordinates; sun whenever a pin exists; no data while DISABLED
+type WeatherSettings { lat: Float  lng: Float  address: String  refreshMinutes: Int!  staleMinutes: Int!  enabled: Boolean!  lastError: String } # admin; lat/lng: the household pin; lastError: the last failed fetch
+input WeatherSettingsInput { lat: Float  lng: Float  address: String  refreshMinutes: Int!  staleMinutes: Int!  enabled: Boolean! } # refreshMinutes 5-120; staleMinutes refreshMinutes-720
+type IntegrationStatus { tuyaCloudConfigured: Boolean!  kasaConfigured: Boolean!  swannConfigured: Boolean!  xweatherConfigured: Boolean!  googleMapsConfigured: Boolean!  tuyaLastSyncAt: String  kasaLastSavedAt: String  swannLastSyncAt: String } # ISO times of the last successful key sync / sign-in / recorder probe
 type SwannProbeResult { channels: Int!  codecs: [String!]! }
 type SyncResult { matched: Int!  unmatched: [String!]!  found: [String!]! } # found: quiet devices located on the LAN by key (also in matched)
 input StatePatchInput { on: Boolean  brightness: Int  color: RgbInput  colorTempK: Int }
 input RgbInput { r: Int!  g: Int!  b: Int! }
 enum TileSize { S1x1 W2x1 T1x2 L2x2 }
-type LayoutItem { deviceId: ID!  size: TileSize! }
-input LayoutItemInput { deviceId: ID!  size: TileSize! }
+enum WidgetKind { WEATHER SUN }
+type LayoutItem { deviceId: ID  widget: WidgetKind  size: TileSize! } # exactly one of deviceId and widget
+input LayoutItemInput { deviceId: ID  widget: WidgetKind  size: TileSize! }
 type DashboardLayout { tab: ID!  items: [LayoutItem!]!  isDefault: Boolean! } # tab: "all" or a room id
 enum RoutineScope { PERSONAL SHARED }
-enum StepKind { SET WAIT ROUTINE }
+enum StepKind { SET WAIT ROUTINE CONTINUE_IF IF }
+enum ConditionMetric { TEMP_C FEELS_LIKE_C HUMIDITY WIND_KPH RAINING_NOW RAIN_CHANCE_TODAY SUN }
+enum ConditionOp { ABOVE BELOW IS IS_NOT IS_UP IS_DOWN }
+type Condition { metric: ConditionMetric!  op: ConditionOp!  value: Float } # value: ABOVE/BELOW only
+input ConditionInput { metric: ConditionMetric!  op: ConditionOp!  value: Float }
 enum RunStatus { RUNNING OK PARTIAL FAILED INTERRUPTED STOPPED }
-enum ProblemReason { UNREACHABLE NOT_READY NO_ACCESS REMOVED ROUTINE_REMOVED NESTED_TOO_DEEP }
+enum ProblemReason { UNREACHABLE NOT_READY NO_ACCESS REMOVED ROUTINE_REMOVED NESTED_TOO_DEEP WEATHER_UNAVAILABLE }
+enum RunNoteKind { IF_MET IF_NOT_MET STOPPED }
+type RunNote { step: Int!  routineName: String  kind: RunNoteKind!  conditions: String!  ranRoutineName: String } # which way a condition step went; step: the top-level step; routineName: the called routine it was in, null at top level; ranRoutineName: the routine an If ran
 type DeviceAction { deviceId: ID!  deviceExists: Boolean!  on: Boolean  brightness: Int  color: Rgb  colorTempK: Int  pcPower: PcPowerAction } # on: null = leave power as it is; deviceExists: false once the device was removed; pcPower: SLEEP/SHUTDOWN of a PC with an agent, alone
-type RoutineStep { kind: StepKind!  waitMinutes: Int  actions: [DeviceAction!]!  routineId: ID  routineName: String } # routineId/routineName: ROUTINE steps; routineName null once that routine was removed
-type RoutineSchedule { time: String!  days: [Int!]!  enabled: Boolean! } # time "HH:MM" server local time; days 1 = Monday … 7 = Sunday
+type RoutineStep { kind: StepKind!  waitMinutes: Int  actions: [DeviceAction!]!  routineId: ID  routineName: String  conditions: [Condition!]!  thenRoutineId: ID  thenRoutineName: String  elseRoutineId: ID  elseRoutineName: String } # routineId/routineName: ROUTINE steps; conditions: CONTINUE_IF and IF; then/else: IF; a name is null once that routine was removed
+enum ScheduleAnchor { CLOCK SUNRISE SUNSET }
+type RoutineSchedule { time: String  anchor: ScheduleAnchor!  offsetMinutes: Int!  days: [Int!]!  enabled: Boolean! } # time "HH:MM" server local time, null for SUNRISE/SUNSET; offsetMinutes -180..180 for sun anchors; days 1 = Monday … 7 = Sunday
 type RunProblem { step: Int!  deviceId: ID  deviceName: String  reason: ProblemReason!  routineName: String } # step: index of the top-level step; deviceId/deviceName null when the problem is about a called routine itself; routineName: the innermost called routine the problem came from, null in the top-level routine
 type RunPathEntry { routineName: String!  step: Int!  stepCount: Int! } # one routine in the chain of running routines
-type RoutineRun { status: RunStatus!  startedAt: String!  endedAt: String  problems: [RunProblem!]!  hiddenProblems: Int!  currentStep: Int  currentPath: [RunPathEntry!]!  waitUntil: String  startedBy: String } # hiddenProblems: problems on devices the viewer can't see; currentStep (index) and waitUntil while RUNNING; startedBy null = the schedule; currentPath: while RUNNING, the called routines the run is inside, outermost first (currentStep is then the top-level step)
+type RoutineRun { status: RunStatus!  startedAt: String!  endedAt: String  problems: [RunProblem!]!  hiddenProblems: Int!  notes: [RunNote!]!  currentStep: Int  currentPath: [RunPathEntry!]!  waitUntil: String  startedBy: String } # hiddenProblems: problems on devices the viewer can't see; currentStep (index) and waitUntil while RUNNING; startedBy null = the schedule; currentPath: while RUNNING, the called routines the run is inside, outermost first (currentStep is then the top-level step)
 type Routine { id: ID!  name: String!  scope: RoutineScope!  room: Room  owner: User  steps: [RoutineStep!]!  schedules: [RoutineSchedule!]!  audience: [ID!]!  lastRun: RoutineRun  editable: Boolean! } # room: null = Whole house; audience: [] unless the caller is an admin
 type RoutineRunEvent { routineId: ID!  run: RoutineRun! } # routineId "try" for the subscriber's own Try it run
 type RoutineOption { id: ID!  name: String! } # a routine that can be run from another
 type CameraGroup { id: ID!  name: String!  scope: RoutineScope!  owner: User  layout: Int!  cameraIds: [ID!]!  audience: [ID!]!  editable: Boolean! } # cameraIds: in order, only cameras the viewer can see; audience: [] unless admin
 input CameraGroupInput { name: String!  scope: RoutineScope!  layout: Int!  cameraIds: [ID!]!  audience: [ID!] } # layout: 1, 2, 4, 6, 8 or 16; 1-16 cameras
 input DeviceActionInput { deviceId: ID!  on: Boolean  brightness: Int  color: RgbInput  colorTempK: Int  pcPower: PcPowerAction } # pcPower: SLEEP or SHUTDOWN only (no RESTART), nothing else alongside
-input RoutineStepInput { kind: StepKind!  waitMinutes: Int  actions: [DeviceActionInput!]  routineId: ID }
-input RoutineScheduleInput { time: String!  days: [Int!]!  enabled: Boolean }
+input RoutineStepInput { kind: StepKind!  waitMinutes: Int  actions: [DeviceActionInput!]  routineId: ID  conditions: [ConditionInput!]  thenRoutineId: ID  elseRoutineId: ID }
+input RoutineScheduleInput { time: String  anchor: ScheduleAnchor  offsetMinutes: Int  days: [Int!]!  enabled: Boolean } # time is required for CLOCK (the default)
 input RoutineInput { name: String!  scope: RoutineScope!  roomId: ID  steps: [RoutineStepInput!]!  schedules: [RoutineScheduleInput!]!  audience: [ID!] } # audience: SHARED only
 
 enum PanDirection { UP RIGHT DOWN LEFT }
@@ -95,6 +112,9 @@ type Query {
   deviceGrants(deviceId: ID!): [ID!]! # admin; user ids with explicit grants
   computerGrants(deviceId: ID!): [ComputerGrant!]! # admin; every user granted the PC, with their Live stats / Power flags
   integrations: IntegrationStatus! # admin
+  weather: Weather! # any signed-in user
+  weatherSettings: WeatherSettings! # admin
+  mapsApiKey: String # admin; the Google Maps key to draw the map, null until set
   dashboardLayouts: [DashboardLayout!]! # effective per tab for the caller (own, else default); tabs with none are omitted
   routines: [Routine!]!           # the caller's dashboard set: own personal + shared they can see (admins: own + every shared)
   otherRoutines: [Routine!]!      # admin; other users' personal routines
@@ -140,6 +160,10 @@ type Mutation {
   syncTuyaKeys: SyncResult!
   setTuyaLocalKey(deviceId: ID!, localKey: String!): AdminDevice!
   setKasaCredentials(username: String!, password: String!): IntegrationStatus!
+  setXweatherCredentials(clientId: String!, clientSecret: String!): IntegrationStatus! # admin
+  setGoogleMapsKey(apiKey: String!): IntegrationStatus! # admin
+  updateWeatherSettings(input: WeatherSettingsInput!): WeatherSettings! # admin
+  testXweather: Boolean! # admin; fetches weather for the saved pin (or a sample point); XWEATHER_FAILED with the reason
   addKasaByIp(ip: String!): AdminDevice!
   addComputer(name: String!, roomId: ID, mac: String!, ip: String): AdminDevice! # admin; mac in any common notation, stored aa:bb:cc:dd:ee:ff; ip enables the awake check
   updateComputer(id: ID!, mac: String!, ip: String): AdminDevice! # admin; an omitted ip clears it
@@ -179,6 +203,7 @@ type Subscription {
   devicesChanged: Boolean! # list/grant/room changes; client refetches `devices`
   routineRunChanged: RoutineRunEvent! # routines the subscriber can see, plus their own Try it run
   cameraGroupsChanged: Boolean! # a camera group was created, updated or deleted; client refetches
+  weatherUpdated: Weather! # the weather or its status changed
   routinesChanged: Boolean! # a routine was created, updated or deleted; client refetches `routines`
   pcPowerState(deviceId: ID!): PcPowerState! # progress of power actions on a PC the subscriber may see
   pcStats(deviceId: ID!): PcStats! # Live stats permission; a sample every 2 s while subscribed; ends when the permission is lost

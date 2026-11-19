@@ -6,7 +6,7 @@ import { adminDeviceFixture, roomFixture } from '../test/adminFixtures'
 import { createTestClient, failWith, type Handler, reply } from '../test/testClient'
 import { IntegrationsPage } from './IntegrationsPage'
 
-type Status = { tuyaCloudConfigured: boolean; kasaConfigured: boolean; swannConfigured: boolean; tuyaLastSyncAt?: string | null }
+type Status = { tuyaCloudConfigured: boolean; kasaConfigured: boolean; swannConfigured: boolean; xweatherConfigured: boolean; googleMapsConfigured: boolean; tuyaLastSyncAt?: string | null }
 
 function Where() {
   return <p data-testid="where">{useLocation().pathname}</p>
@@ -20,6 +20,8 @@ function setup(path: string, status: Partial<Status> = {}, extra: Record<string,
         tuyaCloudConfigured: true,
         kasaConfigured: false,
         swannConfigured: false,
+        xweatherConfigured: false,
+        googleMapsConfigured: false,
         tuyaLastSyncAt: null,
         kasaLastSavedAt: null,
         swannLastSyncAt: null,
@@ -137,6 +139,8 @@ describe('IntegrationsPage', () => {
               tuyaCloudConfigured: true,
               kasaConfigured: false,
               swannConfigured: false,
+              xweatherConfigured: false,
+              googleMapsConfigured: false,
               tuyaLastSyncAt: synced,
               kasaLastSavedAt: null,
               swannLastSyncAt: null,
@@ -153,5 +157,66 @@ describe('IntegrationsPage', () => {
     setup('/admin/integrations/tuya', {}, { Integrations: failWith('INTERNAL_SERVER_ERROR') })
     expect(await screen.findByText("Couldn't load integrations.")).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
+  })
+
+  describe('weather integrations', () => {
+    const xweatherFailed = (message: string): Handler => () => of({ errors: [{ message, extensions: { code: 'XWEATHER_FAILED' } }] })
+
+    it('still opens device integrations first', async () => {
+      setup('/admin/integrations', { kasaConfigured: true, swannConfigured: true })
+      await screen.findByRole('tab', { name: /Tuya cloud/, selected: true })
+      expect(where()).toBe('/admin/integrations/tuya')
+    })
+
+    it('takes the Xweather client ID and a write-only secret', async () => {
+      const saved: unknown[] = []
+      setup('/admin/integrations/xweather', {}, {
+        SetXweatherCredentials: (op) => {
+          saved.push(op.variables)
+          return reply({ setXweatherCredentials: { __typename: 'IntegrationStatus', xweatherConfigured: true } })(op)
+        },
+      })
+      fireEvent.change(await screen.findByLabelText('Client ID'), { target: { value: ' abc ' } })
+      fireEvent.change(screen.getByLabelText('Client secret'), { target: { value: 's3cret' } })
+      expect(screen.getByLabelText('Client secret')).toHaveAttribute('type', 'password')
+      fireEvent.click(screen.getByRole('button', { name: 'Save Xweather credentials' }))
+      expect(await screen.findByText('Saved.')).toBeInTheDocument()
+      expect(saved).toEqual([{ clientId: 'abc', clientSecret: 's3cret' }])
+      expect(screen.getByLabelText('Client secret')).toHaveValue('')
+    })
+
+    it('tests the Xweather connection', async () => {
+      setup('/admin/integrations/xweather', { xweatherConfigured: true }, { TestXweather: reply({ testXweather: true }) })
+      fireEvent.click(await screen.findByRole('button', { name: 'Test connection' }))
+      expect(await screen.findByText('Connected')).toBeInTheDocument()
+    })
+
+    it('shows why the Xweather test failed', async () => {
+      setup('/admin/integrations/xweather', { xweatherConfigured: true }, { TestXweather: xweatherFailed('Xweather rejected the credentials') })
+      fireEvent.click(await screen.findByRole('button', { name: 'Test connection' }))
+      expect(await screen.findByText('Xweather rejected the credentials')).toBeInTheDocument()
+    })
+
+    it('takes the Google Maps key with how to restrict it', async () => {
+      const saved: unknown[] = []
+      setup('/admin/integrations/google-maps', {}, {
+        SetGoogleMapsKey: (op) => {
+          saved.push(op.variables)
+          return reply({ setGoogleMapsKey: { __typename: 'IntegrationStatus', googleMapsConfigured: true } })(op)
+        },
+      })
+      expect(await screen.findByText("Restrict this key to the Maps JavaScript and Places APIs and to this app's address.")).toBeInTheDocument()
+      fireEvent.change(screen.getByLabelText('Maps API key'), { target: { value: 'k-1' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Save Google Maps key' }))
+      expect(await screen.findByText('Saved.')).toBeInTheDocument()
+      expect(saved).toEqual([{ apiKey: 'k-1' }])
+      expect(screen.getByLabelText('Maps API key')).toHaveValue('')
+    })
+
+    it('lists no devices on the weather tabs', async () => {
+      setup('/admin/integrations/xweather')
+      await screen.findByLabelText('Client ID')
+      expect(screen.queryByRole('region', { name: 'Devices using it' })).not.toBeInTheDocument()
+    })
   })
 })

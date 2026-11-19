@@ -3,27 +3,31 @@ import Box from '@mui/material/Box'
 import { motion } from 'framer-motion'
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
 import { settle } from '../../motion/tokens'
+import type { Weather } from '../../weather/data/useWeather'
 import type { ArrangedTile } from '../lib/reconcileLayout'
 import { tileSpan, type TileSize } from '../lib/tileSize'
-import { DeviceTile } from '../tile/DeviceTile'
+import type { WidgetKind } from '../widgets/widgetKinds'
+import { RemoveWidgetButton } from './RemoveWidgetButton'
 import { SizePicker } from './SizePicker'
+import { TileFace, tileName } from './TileFace'
 
 type Props = {
   tile: ArrangedTile
-  onMoveBy: (deviceId: string, delta: number) => void
-  onResize: (deviceId: string, size: TileSize) => void
+  weather: Weather | undefined
+  onMoveBy: (key: string, delta: number) => void
+  onResize: (key: string, size: TileSize) => void
+  onRemoveWidget: (kind: WidgetKind) => void
 }
-
-const noop = () => {}
 const STEP: Record<string, number> = { ArrowLeft: -1, ArrowUp: -1, ArrowRight: 1, ArrowDown: 1 }
 
 /**
  * A card in arrange mode: the real tile, made inert so it can't be switched, under a drag handle that
- * covers it. Keyboard: Space/Enter picks the card up, arrows move it along the list, Space/Enter/Escape drop it.
+ * covers it; a widget also gets a remove ×. Keyboard: Space/Enter picks the card up, arrows move it along the list, Space/Enter/Escape drop it.
  */
-export function SortableTile({ tile, onMoveBy, onResize }: Props) {
-  const { device, size } = tile
-  const { attributes, listeners, setNodeRef, isDragging } = useSortable({ id: device.id })
+export function SortableTile({ tile, weather, onMoveBy, onResize, onRemoveWidget }: Props) {
+  const { key, size } = tile
+  const name = tileName(tile)
+  const { attributes, listeners, setNodeRef, isDragging } = useSortable({ id: key })
   const [lifted, setLifted] = useState(false)
   const handleRef = useRef<HTMLDivElement>(null)
   // Set while a keyboard move reorders the DOM, which can blur the handle: keep the card lifted and refocus it.
@@ -45,7 +49,7 @@ export function SortableTile({ tile, onMoveBy, onResize }: Props) {
     } else if (lifted && STEP[e.key]) {
       e.preventDefault()
       moving.current = true
-      onMoveBy(device.id, STEP[e.key])
+      onMoveBy(key, STEP[e.key])
     }
   }
 
@@ -60,7 +64,7 @@ export function SortableTile({ tile, onMoveBy, onResize }: Props) {
       sx={{ position: 'relative', minWidth: 0, opacity: isDragging ? 0.35 : 1 }}
     >
       <Box inert sx={{ height: '100%' }}>
-        <DeviceTile device={device} isAdmin={false} onToggle={noop} onOpenDetails={noop} />
+        <TileFace tile={tile} weather={weather} />
       </Box>
       <Box
         {...attributes}
@@ -68,7 +72,7 @@ export function SortableTile({ tile, onMoveBy, onResize }: Props) {
         ref={handleRef}
         role="button"
         tabIndex={0}
-        aria-label={`Move ${device.name}`}
+        aria-label={`Move ${name}`}
         aria-pressed={lifted}
         onKeyDown={onKeyDown}
         onBlur={() => {
@@ -91,8 +95,9 @@ export function SortableTile({ tile, onMoveBy, onResize }: Props) {
         }}
       />
       <Box sx={{ position: 'absolute', left: 8, bottom: 8, zIndex: 1 }}>
-        <SizePicker deviceName={device.name} value={size} onChange={(next) => onResize(device.id, next)} />
+        <SizePicker deviceName={name} value={size} onChange={(next) => onResize(key, next)} />
       </Box>
+      {'widget' in tile && <RemoveWidgetButton name={name} onRemove={() => onRemoveWidget(tile.widget)} />}
     </Box>
   )
 }

@@ -17,6 +17,7 @@ import { roomResolvers } from "./rooms.js";
 import { routineResolvers } from "./routines.js";
 import { subscriptionResolvers } from "./subscriptions.js";
 import { userResolvers } from "./users.js";
+import { weatherResolvers } from "./weather.js";
 
 export const resolvers = {
   Query: {
@@ -27,6 +28,7 @@ export const resolvers = {
     ...roomResolvers.Query,
     ...userResolvers.Query,
     ...integrationResolvers.Query,
+    ...weatherResolvers.Query,
     ...layoutResolvers.Query,
     ...routineResolvers.Query,
     ...computerResolvers.Query,
@@ -46,6 +48,7 @@ export const resolvers = {
     ...roomResolvers.Mutation,
     ...userResolvers.Mutation,
     ...integrationResolvers.Mutation,
+    ...weatherResolvers.Mutation,
     ...layoutResolvers.Mutation,
     ...trialResolvers.Mutation,
     ...routineResolvers.Mutation,
@@ -55,5 +58,5 @@ export const resolvers = {
   },
   Device: computerResolvers.Device,
   ComputerInfo: computerGrantResolvers.ComputerInfo,
-  Subscription: { ...subscriptionResolvers.Subscription, ...pcPowerResolvers.Subscription, ...pcStatsResolvers.Subscription },
+  Subscription: { ...subscriptionResolvers.Subscription, ...pcPowerResolvers.Subscription, ...pcStatsResolvers.Subscription, ...weatherResolvers.Subscription },
 };

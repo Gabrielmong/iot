@@ -22,8 +22,8 @@ export function adminErrorMessage(error: unknown): string {
       const code = e.extensions?.code
       if (typeof code === 'string' && FRIENDLY[code]) return FRIENDLY[code]
     }
-    // Only input-validation messages are written for people (last admin, bad PIN, duplicate name).
-    const input = error.errors.find((e) => e.extensions?.code === 'BAD_USER_INPUT')
+    // Only input-validation messages and Xweather's reason are written for people (last admin, bad PIN, duplicate name).
+    const input = error.errors.find((e) => e.extensions?.code === 'BAD_USER_INPUT' || e.extensions?.code === 'XWEATHER_FAILED')
     if (input?.message) return input.message
   }
   return 'Something went wrong. Try again.'

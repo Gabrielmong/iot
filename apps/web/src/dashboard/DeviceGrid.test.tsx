@@ -11,8 +11,8 @@ describe('DeviceGrid', () => {
       <MemoryRouter>
         <DeviceGrid
           tiles={[
-            { device: big, size: 'L2x2' },
-            { device: small, size: 'S1x1' },
+            { key: 'big', device: big, size: 'L2x2' },
+            { key: 'small', device: small, size: 'S1x1' },
           ]}
           isAdmin={false}
           onToggle={vi.fn()}

@@ -34,7 +34,7 @@ describe('draftOps', () => {
 
   it('adds, edits and removes schedule rows', () => {
     let d = addSchedule(emptyDraft('PERSONAL'))
-    expect(d.schedules).toEqual([{ key: expect.any(String), time: '07:00', days: [1, 2, 3, 4, 5], enabled: true }])
+    expect(d.schedules).toEqual([{ key: expect.any(String), anchor: 'CLOCK', time: '07:00', offsetMinutes: 0, days: [1, 2, 3, 4, 5], enabled: true }])
     const key = d.schedules[0]!.key
     d = updateSchedule(d, key, { time: '22:30', enabled: false })
     expect(d.schedules[0]).toMatchObject({ time: '22:30', enabled: false })

@@ -119,3 +119,27 @@ describe("action rules", () => {
     expect(fitAction({ deviceId: "c", on: true }, { kind: "CAMERA", brand: "SWANN" })).toBeNull();
   });
 });
+
+describe("condition steps", () => {
+  const hot = [{ metric: "TEMP_C", op: "ABOVE", value: 28 }];
+
+  it("an If needs a routine to run", () => {
+    expect(message(() => parseSteps([set("a"), { kind: "IF", conditions: hot }]))).toBe("Pick a routine to run");
+  });
+
+  it("an If counts as running a routine; a Continue-only-if alone does not", () => {
+    expect(parseSteps([{ kind: "IF", conditions: hot, thenRoutineId: "r1" }])).toEqual([
+      { kind: "IF", conditions: [{ metric: "TEMP_C", op: "ABOVE", value: 28 }], thenRoutineId: "r1", elseRoutineId: null },
+    ]);
+    expect(message(() => parseSteps([{ kind: "CONTINUE_IF", conditions: hot }]))).toBe("Add a device or a routine");
+  });
+
+  it("checks the conditions", () => {
+    expect(message(() => parseSteps([set("a"), { kind: "CONTINUE_IF", conditions: [] }]))).toBe("Add 1 to 5 conditions");
+  });
+
+  it("lists an If's then and else routines", () => {
+    const steps = parseSteps([{ kind: "IF", conditions: hot, thenRoutineId: "r1", elseRoutineId: "r2" }, { kind: "ROUTINE", routineId: "r1" }]);
+    expect(stepRoutineIds(steps)).toEqual(["r1", "r2"]);
+  });
+});

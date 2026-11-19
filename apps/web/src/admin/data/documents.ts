@@ -113,7 +113,7 @@ export const SET_GRANTS = graphql(`
 
 export const INTEGRATIONS = graphql(`
   query Integrations {
-    integrations { tuyaCloudConfigured kasaConfigured swannConfigured tuyaLastSyncAt kasaLastSavedAt swannLastSyncAt }
+    integrations { tuyaCloudConfigured kasaConfigured swannConfigured xweatherConfigured googleMapsConfigured tuyaLastSyncAt kasaLastSavedAt swannLastSyncAt }
   }
 `)
 
@@ -138,6 +138,43 @@ export const SET_SWANN_RECORDER = graphql(`
 export const SET_KASA_CREDENTIALS = graphql(`
   mutation SetKasaCredentials($username: String!, $password: String!) {
     setKasaCredentials(username: $username, password: $password) { tuyaCloudConfigured kasaConfigured }
+  }
+`)
+
+export const SET_XWEATHER_CREDENTIALS = graphql(`
+  mutation SetXweatherCredentials($clientId: String!, $clientSecret: String!) {
+    setXweatherCredentials(clientId: $clientId, clientSecret: $clientSecret) { xweatherConfigured }
+  }
+`)
+
+export const TEST_XWEATHER = graphql(`
+  mutation TestXweather {
+    testXweather
+  }
+`)
+
+export const SET_GOOGLE_MAPS_KEY = graphql(`
+  mutation SetGoogleMapsKey($apiKey: String!) {
+    setGoogleMapsKey(apiKey: $apiKey) { googleMapsConfigured }
+  }
+`)
+
+export const WEATHER_SETTINGS = graphql(`
+  query WeatherSettings {
+    weatherSettings { lat lng address refreshMinutes staleMinutes enabled lastError }
+    weather { status updatedAt }
+  }
+`)
+
+export const UPDATE_WEATHER_SETTINGS = graphql(`
+  mutation UpdateWeatherSettings($input: WeatherSettingsInput!) {
+    updateWeatherSettings(input: $input) { lat lng address refreshMinutes staleMinutes enabled lastError }
+  }
+`)
+
+export const MAPS_API_KEY = graphql(`
+  query MapsApiKey {
+    mapsApiKey
   }
 `)
 

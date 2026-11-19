@@ -1,11 +1,10 @@
 import Box from '@mui/material/Box'
+import type { Weather } from '../../weather/data/useWeather'
 import type { ArrangedTile } from '../lib/reconcileLayout'
-import { DeviceTile } from '../tile/DeviceTile'
-
-const noop = () => {}
+import { TileFace } from './TileFace'
 
 /** The card being dragged, lifted above the grid. A decorative copy of the tile. */
-export function LiftedCard({ tile }: { tile: ArrangedTile }) {
+export function LiftedCard({ tile, weather }: { tile: ArrangedTile; weather: Weather | undefined }) {
   return (
     <Box
       inert
@@ -18,7 +17,7 @@ export function LiftedCard({ tile }: { tile: ArrangedTile }) {
         cursor: 'grabbing',
       }}
     >
-      <DeviceTile device={tile.device} isAdmin={false} onToggle={noop} onOpenDetails={noop} />
+      <TileFace tile={tile} weather={weather} />
     </Box>
   )
 }

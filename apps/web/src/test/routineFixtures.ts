@@ -1,8 +1,12 @@
-import type { ProblemReason, RoutineFieldsFragment, RunStatus } from '../gql/graphql'
+import type { ProblemReason, RoutineFieldsFragment, RunNoteKind, RunStatus } from '../gql/graphql'
 import { liveSubscription, reply, type Handler } from './testClient'
 
 type Routine = RoutineFieldsFragment
-type Opts = Partial<Pick<Routine, 'id' | 'name' | 'scope' | 'editable' | 'audience' | 'room' | 'owner' | 'schedules' | 'lastRun'>> & {
+type Schedule = Routine['schedules'][number]
+/** A schedule; anchor and offset default to a clock time. */
+type ScheduleOpt = Omit<Schedule, 'anchor' | 'offsetMinutes'> & Partial<Pick<Schedule, 'anchor' | 'offsetMinutes'>>
+type Opts = Partial<Pick<Routine, 'id' | 'name' | 'scope' | 'editable' | 'audience' | 'room' | 'owner' | 'lastRun'>> & {
+  schedules?: ScheduleOpt[]
   deviceIds?: string[]
   /** Device ids reported as removed (deviceExists: false). */
   removedIds?: string[]
@@ -10,7 +14,11 @@ type Opts = Partial<Pick<Routine, 'id' | 'name' | 'scope' | 'editable' | 'audien
 
 /** A run as the server sends it (with `__typename`s). */
 type ProblemOpts = { deviceName: string | null; reason: ProblemReason; step?: number; deviceId?: string; routineName?: string | null }
-type Progress = { currentStep?: number | null; waitUntil?: string | null; startedBy?: string | null }
+type Progress = { currentStep?: number | null; waitUntil?: string | null; startedBy?: string | null; notes?: NoteOpts[] }
+type NoteOpts = { kind: RunNoteKind; conditions: string; step?: number; routineName?: string | null; ranRoutineName?: string | null }
+
+/** Step fields only condition steps use, empty. */
+export const NO_CONDITION_FIELDS = { conditions: [], thenRoutineId: null, thenRoutineName: null, elseRoutineId: null, elseRoutineName: null }
 
 export function runFixture(status: RunStatus, problems: ProblemOpts[] = [], hiddenProblems = 0, progress: Progress = {}) {
   return {
@@ -20,6 +28,7 @@ export function runFixture(status: RunStatus, problems: ProblemOpts[] = [], hidd
     endedAt: status === 'RUNNING' ? null : '2026-11-09T20:00:01.000Z',
     problems: problems.map((p) => ({ __typename: 'RunProblem' as const, step: 0, deviceId: p.deviceName?.toLowerCase() ?? null, routineName: null, ...p })),
     hiddenProblems,
+    notes: (progress.notes ?? []).map((n) => ({ __typename: 'RunNote' as const, step: 0, routineName: null, ranRoutineName: null, ...n })),
     currentPath: [],
     currentStep: progress.currentStep ?? (status === 'RUNNING' ? 0 : null),
     waitUntil: progress.waitUntil ?? null,
@@ -45,6 +54,7 @@ export function routineFixture(o: Opts = {}): Routine {
         waitMinutes: null,
         routineId: null,
         routineName: null,
+        ...NO_CONDITION_FIELDS,
         actions: (o.deviceIds ?? ['lamp']).map((deviceId) => ({
           __typename: 'DeviceAction',
           deviceId,
@@ -57,7 +67,7 @@ export function routineFixture(o: Opts = {}): Routine {
         })),
       },
     ],
-    schedules: (o.schedules ?? []).map((s) => ({ __typename: 'RoutineSchedule', ...s })),
+    schedules: (o.schedules ?? []).map((s) => ({ __typename: 'RoutineSchedule' as const, anchor: 'CLOCK' as const, offsetMinutes: 0, ...s })),
     lastRun: o.lastRun ?? null,
   }
   return routine as Routine

@@ -3,13 +3,23 @@ import { coded } from "../src/api-errors.js";
 import type { StatePatch } from "../src/devices/types.js";
 import { outcome } from "../src/routines/run-outcome.js";
 import { RoutineRunner, type RunAs, type RunnerDeps, type RunSnapshot } from "../src/routines/runner.js";
+import type { Condition } from "../src/routines/conditions.js";
 import type { RoutineStep } from "../src/routines/steps.js";
+import type { WeatherFacts } from "../src/weather/service.js";
+import { SAMPLE_WEATHER } from "./fixtures/weather.js";
 
 type Device = { id: string; name: string; kind: "LIGHT" | "PLUG" | "CAMERA"; brand: "TUYA" | "KASA" | "SWANN" };
 
 type Called = { name: string; steps: RoutineStep[] } | "NO_ACCESS" | "THROW";
 
-function setup(devices: Device[], routines: Record<string, Called> = {}) {
+const NOW = new Date(2026, 10, 9, 20, 0);
+const weatherAt = (tempC: number | null): WeatherFacts => ({
+  reading: tempC === null ? null : { ...SAMPLE_WEATHER, current: { ...SAMPLE_WEATHER.current, tempC }, fetchedAt: NOW, lat: 9.93, lng: -84.08 },
+  location: { lat: 9.93, lng: -84.08 },
+  now: NOW,
+});
+
+function setup(devices: Device[], routines: Record<string, Called> = {}, weather: WeatherFacts = weatherAt(24)) {
   const byId = new Map(devices.map((d) => [d.id, d]));
   const routineCalls: { id: string; runAs: RunAs }[] = [];
   const accessCalls: string[] = [];
@@ -40,7 +50,8 @@ function setup(devices: Device[], routines: Record<string, Called> = {}) {
         waits.push({ ms, release: resolve });
         signal.addEventListener("abort", () => reject(new Error("aborted")));
       }),
-    now: () => new Date(2026, 10, 9, 20, 0),
+    now: () => NOW,
+    weather: () => weather,
     onChange: (key, run) => void events.push({ key, run: structuredClone(run) }),
   };
   return {
@@ -289,3 +300,86 @@ describe("outcome", () => {
     expect(outcome(2, [p, p])).toBe("FAILED");
   });
 });
+
+const hot: Condition[] = [{ metric: "TEMP_C", op: "ABOVE", value: 28 }];
+const continueIf = (conditions: Condition[] = hot): RoutineStep => ({ kind: "CONTINUE_IF", conditions });
+const ifThen = (thenRoutineId: string, elseRoutineId: string | null = null): RoutineStep => ({ kind: "IF", conditions: hot, thenRoutineId, elseRoutineId });
+
+describe("condition steps", () => {
+  it("a Continue-only-if that isn't met ends the run OK and notes why", async () => {
+    const t = setup([lamp], {}, weatherAt(20));
+    t.runner.start("r1", [set({ deviceId: "lamp", on: true }), continueIf(), set({ deviceId: "lamp", on: false })], null);
+    await vi.waitFor(() => expect(t.statuses()).toEqual(["RUNNING", "OK"]));
+    expect(t.commands).toHaveLength(1);
+    expect(t.events.at(-1)!.run.notes).toEqual([{ step: 1, routineName: null, kind: "STOPPED", conditions: "temperature above 28°", ranRoutineName: null }]);
+  });
+
+  it("a met Continue-only-if carries on", async () => {
+    const t = setup([lamp], {}, weatherAt(30));
+    t.runner.start("r1", [continueIf(), set({ deviceId: "lamp", on: true })], null);
+    await vi.waitFor(() => expect(t.statuses()).toEqual(["RUNNING", "OK"]));
+    expect(t.commands).toHaveLength(1);
+    expect(t.events.at(-1)!.run.notes).toEqual([]);
+  });
+
+  it("stopping after a step with a problem is PARTIAL", async () => {
+    const t = setup([lamp], {}, weatherAt(20));
+    t.runner.start("r1", [set({ deviceId: "lamp", on: true }, { deviceId: "gone", on: true }), continueIf(), set({ deviceId: "lamp", on: false })], null);
+    await vi.waitFor(() => expect(t.statuses()).toEqual(["RUNNING", "PARTIAL"]));
+  });
+
+  it("unknown weather is a problem and stops the routine", async () => {
+    const t = setup([lamp], {}, weatherAt(null));
+    t.runner.start("r1", [set({ deviceId: "lamp", on: true }), continueIf(), set({ deviceId: "lamp", on: false })], null);
+    await vi.waitFor(() => expect(t.statuses()).toEqual(["RUNNING", "PARTIAL"]));
+    expect(t.events.at(-1)!.run.problems).toEqual([{ step: 1, deviceId: null, deviceName: null, reason: "WEATHER_UNAVAILABLE", routineName: null }]);
+    expect(t.commands).toHaveLength(1);
+  });
+
+  it("a routine that only checks unknown weather FAILS", async () => {
+    const t = setup([], { r2: { name: "Fan", steps: [] } }, weatherAt(null));
+    t.runner.start("r1", [ifThen("r2")], null);
+    await vi.waitFor(() => expect(t.statuses()).toEqual(["RUNNING", "FAILED"]));
+    expect(t.routineCalls).toEqual([]);
+  });
+
+  it("an If runs the then-routine when met, the else-routine when not", async () => {
+    const routines = { fan: { name: "Fan", steps: [set({ deviceId: "tv", on: true })] }, heat: { name: "Heat", steps: [set({ deviceId: "lamp", on: true })] } };
+    const met = setup([lamp, tv], routines, weatherAt(30));
+    met.runner.start("r1", [ifThen("fan", "heat")], null);
+    await vi.waitFor(() => expect(met.statuses()).toEqual(["RUNNING", "OK"]));
+    expect(met.commands.map((c) => c.deviceId)).toEqual(["tv"]);
+    expect(met.events.at(-1)!.run.notes).toEqual([{ step: 0, routineName: null, kind: "IF_MET", conditions: "temperature above 28°", ranRoutineName: "Fan" }]);
+    const notMet = setup([lamp, tv], routines, weatherAt(20));
+    notMet.runner.start("r1", [ifThen("fan", "heat")], null);
+    await vi.waitFor(() => expect(notMet.statuses()).toEqual(["RUNNING", "OK"]));
+    expect(notMet.commands.map((c) => c.deviceId)).toEqual(["lamp"]);
+    expect(notMet.events.at(-1)!.run.notes[0]).toMatchObject({ kind: "IF_NOT_MET", ranRoutineName: "Heat" });
+  });
+
+  it("an If that isn't met without an else runs nothing and carries on", async () => {
+    const t = setup([lamp], { fan: { name: "Fan", steps: [] } }, weatherAt(20));
+    t.runner.start("r1", [ifThen("fan"), set({ deviceId: "lamp", on: true })], null);
+    await vi.waitFor(() => expect(t.statuses()).toEqual(["RUNNING", "OK"]));
+    expect(t.routineCalls).toEqual([]);
+    expect(t.commands).toHaveLength(1);
+    expect(t.events.at(-1)!.run.notes).toEqual([{ step: 0, routineName: null, kind: "IF_NOT_MET", conditions: "temperature above 28°", ranRoutineName: null }]);
+  });
+
+  it("a stop inside a called routine stops only that routine", async () => {
+    const t = setup([lamp, tv], { inner: { name: "Inner", steps: [continueIf(), set({ deviceId: "tv", on: true })] } }, weatherAt(20));
+    t.runner.start("r1", [call("inner"), set({ deviceId: "lamp", on: true })], null);
+    await vi.waitFor(() => expect(t.statuses()).toEqual(["RUNNING", "OK"]));
+    expect(t.commands.map((c) => c.deviceId)).toEqual(["lamp"]);
+    expect(t.events.at(-1)!.run.notes).toEqual([{ step: 0, routineName: "Inner", kind: "STOPPED", conditions: "temperature above 28°", ranRoutineName: null }]);
+  });
+
+  it("an If whose routine was removed is a problem and the run carries on", async () => {
+    const t = setup([lamp], {}, weatherAt(30));
+    t.runner.start("r1", [ifThen("gone"), set({ deviceId: "lamp", on: true })], null);
+    await vi.waitFor(() => expect(t.statuses()).toEqual(["RUNNING", "PARTIAL"]));
+    expect(t.events.at(-1)!.run.problems).toEqual([{ step: 0, deviceId: null, deviceName: null, reason: "ROUTINE_REMOVED", routineName: null }]);
+    expect(t.commands).toHaveLength(1);
+  });
+});
+

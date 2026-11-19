@@ -1,11 +1,16 @@
 import type { RunStatus } from "../generated/prisma/client.js";
 
-export type ProblemReason = "UNREACHABLE" | "NOT_READY" | "NO_ACCESS" | "REMOVED" | "ROUTINE_REMOVED" | "NESTED_TOO_DEEP";
+export type ProblemReason = "UNREACHABLE" | "NOT_READY" | "NO_ACCESS" | "REMOVED" | "ROUTINE_REMOVED" | "NESTED_TOO_DEEP" | "WEATHER_UNAVAILABLE";
 /**
  * step: index of the top-level step the problem happened in. routineName: the (innermost) called routine it came from,
  * null at top level. Routine-level problems (a removed, unusable or too deeply nested routine) have no device.
  */
 export type Problem = { step: number; deviceId: string | null; deviceName: string | null; reason: ProblemReason; routineName: string | null };
+/**
+ * Which way a condition step went. step: the top-level step; routineName: the called routine it was in (null at top level);
+ * conditions: the conditions as text; ranRoutineName: the routine an If ran (null when it ran none, or it couldn't be loaded).
+ */
+export type RunNote = { step: number; routineName: string | null; kind: "IF_MET" | "IF_NOT_MET" | "STOPPED"; conditions: string; ranRoutineName: string | null };
 /** One called routine the run is inside: its name, the step in progress there and how many steps it has. */
 export type PathEntry = { routineName: string; step: number; stepCount: number };
 /**
@@ -18,6 +23,7 @@ export type RunSnapshot = {
   startedAt: Date;
   endedAt: Date | null;
   problems: Problem[];
+  notes: RunNote[];
   currentStep: number | null;
   currentPath: PathEntry[];
   waitUntil: Date | null;

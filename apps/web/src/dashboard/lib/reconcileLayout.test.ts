@@ -1,10 +1,10 @@
 import { deviceFixture } from '../../test/deviceFixtures'
-import { reconcileLayout } from './reconcileLayout'
+import { entryKey, type LayoutEntry, reconcileLayout } from './reconcileLayout'
 
 const a = deviceFixture({ id: 'a' })
 const b = deviceFixture({ id: 'b' })
 const c = deviceFixture({ id: 'c' })
-const view = (tiles: ReturnType<typeof reconcileLayout>) => tiles.map((t) => `${t.device.id}:${t.size}`)
+const view = (tiles: ReturnType<typeof reconcileLayout>) => tiles.map((t) => `${t.key}:${t.size}`)
 
 describe('reconcileLayout', () => {
   it('uses server order at 1×1 when there is no layout', () => {
@@ -27,6 +27,29 @@ describe('reconcileLayout', () => {
 
   it('uses the live device object, not a stale one', () => {
     const fresh = deviceFixture({ id: 'a', name: 'Renamed' })
-    expect(reconcileLayout([{ deviceId: 'a', size: 'S1x1' }], [fresh])[0].device).toBe(fresh)
+    const [tile] = reconcileLayout([{ deviceId: 'a', size: 'S1x1' }], [fresh])
+    expect('device' in tile && tile.device).toBe(fresh)
+  })
+
+  it('keeps widget entries where they are stored, whatever the devices', () => {
+    const entries: LayoutEntry[] = [
+      { deviceId: 'a', size: 'S1x1' },
+      { widget: 'WEATHER', size: 'W2x1' },
+    ]
+    expect(view(reconcileLayout(entries, [b, a]))).toEqual(['a:S1x1', 'widget:WEATHER:W2x1', 'b:S1x1'])
+    expect(view(reconcileLayout([{ widget: 'SUN', size: 'S1x1' }], []))).toEqual(['widget:SUN:S1x1'])
+  })
+
+  it('applies the defaults only when nothing is stored', () => {
+    const defaults: LayoutEntry[] = [{ widget: 'WEATHER', size: 'W2x1' }]
+    expect(view(reconcileLayout(undefined, [a], defaults))).toEqual(['widget:WEATHER:W2x1', 'a:S1x1'])
+    expect(view(reconcileLayout([], [a], defaults))).toEqual(['a:S1x1'])
+  })
+})
+
+describe('entryKey', () => {
+  it('is the device id, or widget: and the kind', () => {
+    expect(entryKey({ deviceId: 'a', size: 'S1x1' })).toBe('a')
+    expect(entryKey({ widget: 'SUN', size: 'S1x1' })).toBe('widget:SUN')
   })
 })

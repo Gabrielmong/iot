@@ -9,6 +9,7 @@ import { useId } from 'react'
 import { runLabel } from '../lib/runLabel'
 import { clockTime, stepProgress, stepStates } from '../lib/runProgress'
 import type { Routine } from '../types'
+import { RunNotes } from './RunNotes'
 import { StepDetail } from './StepDetail'
 import { useNow } from './useNow'
 
@@ -37,6 +38,7 @@ export function RunDetailsDialog({ routine, deviceNames, onStop, onClose }: Prop
             <StepDetail key={i} index={i} step={step} state={states[i]!} run={run} deviceNames={deviceNames} now={now} />
           ))}
         </Typography>
+        <RunNotes notes={run?.notes ?? []} />
         {run && run.hiddenProblems > 0 && (
           <Typography variant="body2" sx={{ color: 'warning.main', mt: 1 }}>
             {plural(run.hiddenProblems, 'device')} had problems

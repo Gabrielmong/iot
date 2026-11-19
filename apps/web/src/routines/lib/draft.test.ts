@@ -1,5 +1,5 @@
 import { computerFixture, deviceFixture, lightFixture } from '../../test/deviceFixtures'
-import { routineFixture } from '../../test/routineFixtures'
+import { routineFixture, NO_CONDITION_FIELDS } from '../../test/routineFixtures'
 import { draftToInput, emptyDraft, routineToDraft } from './draft'
 
 const lamp = lightFixture({}, { id: 'lamp' })
@@ -62,7 +62,7 @@ describe('draft', () => {
       deviceIds: ['lamp'],
       schedules: [{ time: '07:00', days: [1, 2], enabled: false }],
     })
-    r.steps.push({ kind: 'WAIT', waitMinutes: 45, routineId: null, routineName: null, actions: [] })
+    r.steps.push({ ...NO_CONDITION_FIELDS, kind: 'WAIT', waitMinutes: 45, routineId: null, routineName: null, actions: [] })
     const { draft } = routineToDraft(r, [lamp])
     expect(draftToInput(draft)).toEqual({
       name: 'Movie night',
@@ -73,14 +73,50 @@ describe('draft', () => {
         { kind: 'SET', actions: [{ deviceId: 'lamp', on: true, brightness: null, color: null, colorTempK: null, pcPower: null }] },
         { kind: 'WAIT', waitMinutes: 45 },
       ],
-      schedules: [{ time: '07:00', days: [1, 2], enabled: false }],
+      schedules: [{ anchor: 'CLOCK', time: '07:00', offsetMinutes: 0, days: [1, 2], enabled: false }],
     })
+  })
+
+  it('round-trips weather check steps', () => {
+    const r = routineFixture({ deviceIds: ['lamp'] })
+    const cond = (metric: 'TEMP_C' | 'RAINING_NOW', op: 'ABOVE' | 'IS_NOT', value: number | null) => ({ __typename: 'Condition' as const, metric, op, value })
+    r.steps.push({ ...NO_CONDITION_FIELDS, kind: 'CONTINUE_IF', waitMinutes: null, routineId: null, routineName: null, actions: [], conditions: [cond('RAINING_NOW', 'IS_NOT', null)] })
+    r.steps.push({
+      ...NO_CONDITION_FIELDS,
+      kind: 'IF',
+      waitMinutes: null,
+      routineId: null,
+      routineName: null,
+      actions: [],
+      conditions: [cond('TEMP_C', 'ABOVE', 28)],
+      thenRoutineId: 'cool',
+      thenRoutineName: 'Cool down',
+    })
+    const { draft } = routineToDraft(r, [lamp])
+    expect(draft.steps[2]).toMatchObject({ kind: 'IF', thenRoutineId: 'cool', thenRoutineName: 'Cool down', elseRoutineId: null, elseRoutineName: null })
+    expect(draftToInput(draft).steps.slice(1)).toEqual([
+      { kind: 'CONTINUE_IF', conditions: [{ metric: 'RAINING_NOW', op: 'IS_NOT', value: null }] },
+      { kind: 'IF', conditions: [{ metric: 'TEMP_C', op: 'ABOVE', value: 28 }], thenRoutineId: 'cool', elseRoutineId: null },
+    ])
+  })
+
+  it('round-trips a sun schedule, sending no time', () => {
+    const r = routineFixture({ deviceIds: ['lamp'], schedules: [{ time: null, anchor: 'SUNSET', offsetMinutes: -30, days: [5], enabled: true }] })
+    const { draft } = routineToDraft(r, [lamp])
+    expect(draft.schedules[0]).toMatchObject({ anchor: 'SUNSET', offsetMinutes: -30, time: '07:00' })
+    expect(draftToInput(draft).schedules).toEqual([{ anchor: 'SUNSET', time: null, offsetMinutes: -30, days: [5], enabled: true }])
+  })
+
+  it('sends a clock schedule with no offset', () => {
+    const { draft } = routineToDraft(routineFixture({ deviceIds: ['lamp'], schedules: [{ time: '07:00', days: [1], enabled: true }] }), [lamp])
+    draft.schedules[0] = { ...draft.schedules[0]!, offsetMinutes: 20 }
+    expect(draftToInput(draft).schedules).toEqual([{ anchor: 'CLOCK', time: '07:00', offsetMinutes: 0, days: [1], enabled: true }])
   })
 
   it('keeps a Run routine step with its name, or a null name when the routine was removed', () => {
     const r = routineFixture()
-    r.steps.push({ kind: 'ROUTINE', waitMinutes: null, actions: [], routineId: 'b', routineName: 'Bedtime' })
-    r.steps.push({ kind: 'ROUTINE', waitMinutes: null, actions: [], routineId: 'c', routineName: null })
+    r.steps.push({ ...NO_CONDITION_FIELDS, kind: 'ROUTINE', waitMinutes: null, actions: [], routineId: 'b', routineName: 'Bedtime' })
+    r.steps.push({ ...NO_CONDITION_FIELDS, kind: 'ROUTINE', waitMinutes: null, actions: [], routineId: 'c', routineName: null })
     const { draft } = routineToDraft(r, [lamp])
     expect(draft.steps.slice(1)).toMatchObject([
       { kind: 'ROUTINE', routineId: 'b', routineName: 'Bedtime' },

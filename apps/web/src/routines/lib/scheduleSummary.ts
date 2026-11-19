@@ -1,6 +1,17 @@
+import type { ScheduleAnchor } from '../../gql/graphql'
+
 export const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const
 
-type ScheduleRow = { time: string; days: readonly number[]; enabled: boolean }
+type ScheduleRow = { time: string | null; anchor?: ScheduleAnchor; offsetMinutes?: number; days: readonly number[]; enabled: boolean }
+
+const SUN_NAME = { SUNRISE: 'Sunrise', SUNSET: 'Sunset' } as const
+
+/** "07:00", "Sunset", "Sunset −30 min", "Sunrise +15 min". */
+export function scheduleWhen({ time, anchor = 'CLOCK', offsetMinutes = 0 }: Pick<ScheduleRow, 'time' | 'anchor' | 'offsetMinutes'>): string {
+  if (anchor === 'CLOCK') return time ?? ''
+  if (offsetMinutes === 0) return SUN_NAME[anchor]
+  return `${SUN_NAME[anchor]} ${offsetMinutes < 0 ? '−' : '+'}${Math.abs(offsetMinutes)} min`
+}
 
 /** Weekdays (1 = Mon … 7 = Sun) as text: runs of 3+ become ranges ("Mon–Fri"), all 7 is "every day". */
 export function daysLabel(days: readonly number[]): string {
@@ -18,10 +29,10 @@ export function daysLabel(days: readonly number[]): string {
   return parts.join(', ')
 }
 
-/** "07:00 Mon–Fri · 09:30 Sat, Sun"; disabled rows are left out, "" when none. */
+/** "07:00 Mon–Fri · Sunset −30 min Sat, Sun"; disabled rows are left out, "" when none. */
 export function scheduleSummary(schedules: readonly ScheduleRow[]): string {
   return schedules
     .filter((s) => s.enabled)
-    .map((s) => `${s.time} ${daysLabel(s.days)}`)
+    .map((s) => `${scheduleWhen(s)} ${daysLabel(s.days)}`)
     .join(' · ')
 }

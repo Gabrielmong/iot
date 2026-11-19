@@ -2,10 +2,12 @@ import type { StatePatch } from "../devices/types.js";
 import type { Brand, DeviceKind } from "../generated/prisma/client.js";
 import { fitAction } from "./action-rules.js";
 import { enterRoutine, positionAt, routineNameOf, routineProblem } from "./called-routine.js";
-import { outcome, reasonFor, type PathEntry, type Problem, type RunSnapshot } from "./run-outcome.js";
+import { describeConditions, evaluate } from "./conditions.js";
+import { outcome, reasonFor, type PathEntry, type Problem, type RunNote, type RunSnapshot } from "./run-outcome.js";
 import { LIMITS, type DeviceAction, type RoutinePcPower, type RoutineStep } from "./steps.js";
+import type { WeatherFacts } from "../weather/service.js";
 
-export type { PathEntry, Problem, RunSnapshot } from "./run-outcome.js";
+export type { PathEntry, Problem, RunNote, RunSnapshot } from "./run-outcome.js";
 
 /** Who a run acts for: null = full access (shared routines, admins); otherwise grants are checked per Set step. */
 export type RunAs = { userId: string } | null;
@@ -23,6 +25,8 @@ export type RunnerDeps = {
   /** Rejects when `signal` aborts. */
   delay(ms: number, signal: AbortSignal): Promise<void>;
   now(): Date;
+  /** The weather and location condition steps check. */
+  weather(): WeatherFacts;
   /** Every status change of a live run. `key` is a routine id or "try:<userId>". */
   onChange(key: string, run: RunSnapshot): void;
 };
@@ -30,7 +34,9 @@ export type RunnerDeps = {
 /** actionCount: device actions plus "run routine" steps that failed, for the run's outcome. */
 /** name: the routine's name, shown on PCs it sleeps or shuts down. */
 type LiveRun = { abort: AbortController; snapshot: RunSnapshot; actionCount: number; name: string };
-type StepsResult = "done" | "aborted";
+/** halted: a condition stopped this routine (its caller carries on). */
+type StepsResult = "done" | "aborted" | "halted";
+type ConditionStep = Extract<RoutineStep, { kind: "CONTINUE_IF" | "IF" }>;
 
 const REMOVED_NAME = "Removed device";
 const MINUTE_MS = 60_000;
@@ -44,7 +50,7 @@ export class RoutineRunner {
   /** Starts a run, replacing (silently) any live run with the same key. `startedBy`: a user's name, null for the schedule. */
   start(key: string, steps: RoutineStep[], runAs: RunAs, startedBy: string | null = null, name = "Routine"): void {
     this.runs.get(key)?.abort.abort();
-    const snapshot: RunSnapshot = { status: "RUNNING", startedAt: this.deps.now(), endedAt: null, problems: [], currentStep: null, currentPath: [], waitUntil: null, startedBy };
+    const snapshot: RunSnapshot = { status: "RUNNING", startedAt: this.deps.now(), endedAt: null, problems: [], notes: [], currentStep: null, currentPath: [], waitUntil: null, startedBy };
     const run: LiveRun = { abort: new AbortController(), snapshot, actionCount: 0, name };
     this.runs.set(key, run);
     void this.execute(key, run, steps, runAs);
@@ -75,21 +81,21 @@ export class RoutineRunner {
 
   private end(key: string, run: LiveRun, status: RunSnapshot["status"]): void {
     this.runs.delete(key);
-    run.snapshot = { ...run.snapshot, status, endedAt: this.deps.now(), currentStep: null, currentPath: [], waitUntil: null, problems: [...run.snapshot.problems] };
+    run.snapshot = { ...run.snapshot, status, endedAt: this.deps.now(), currentStep: null, currentPath: [], waitUntil: null, problems: [...run.snapshot.problems], notes: [...run.snapshot.notes] };
     this.deps.onChange(key, run.snapshot);
   }
 
   /** Reports that the run moved on to step `index` of the routine at `path` (a copy, so later changes don't leak into it). */
   private enterStep(key: string, run: LiveRun, path: PathEntry[], index: number, waitUntil: Date | null): PathEntry[] {
     const position = positionAt(run.snapshot.currentStep, path, index);
-    run.snapshot = { ...run.snapshot, ...position, waitUntil, problems: [...run.snapshot.problems] };
+    run.snapshot = { ...run.snapshot, ...position, waitUntil, problems: [...run.snapshot.problems], notes: [...run.snapshot.notes] };
     this.deps.onChange(key, run.snapshot);
     return position.currentPath;
   }
 
   private async execute(key: string, run: LiveRun, steps: RoutineStep[], runAs: RunAs): Promise<void> {
     const result = await this.runSteps(key, run, steps, runAs, [], 1);
-    if (result === "done" && this.live(key, run)) this.end(key, run, outcome(run.actionCount, run.snapshot.problems));
+    if (result !== "aborted" && this.live(key, run)) this.end(key, run, outcome(run.actionCount, run.snapshot.problems));
   }
 
   /** Runs the steps of the routine at `path` (top level when empty), `depth` routines deep. */
@@ -106,6 +112,9 @@ export class RoutineRunner {
         }
       } else if (step.kind === "ROUTINE") {
         if ((await this.runRoutine(key, run, step.routineId, runAs, here, depth)) === "aborted") return "aborted";
+      } else if (step.kind === "CONTINUE_IF" || step.kind === "IF") {
+        const result = await this.runCondition(key, run, step, runAs, here, depth, index);
+        if (result !== "done") return result;
       } else {
         run.actionCount += step.actions.length;
         const top = run.snapshot.currentStep ?? index;
@@ -116,8 +125,33 @@ export class RoutineRunner {
     return "done";
   }
 
-  /** A "run routine" step at `path`: runs the routine inline, or records why it couldn't. */
-  private async runRoutine(key: string, run: LiveRun, id: string, runAs: RunAs, path: PathEntry[], depth: number): Promise<StepsResult> {
+  /** A Continue-only-if or If step at `path`: checks the weather, notes which way it went, and runs an If's branch. */
+  private async runCondition(key: string, run: LiveRun, step: ConditionStep, runAs: RunAs, path: PathEntry[], depth: number, index: number): Promise<StepsResult> {
+    const top = run.snapshot.currentStep ?? index;
+    const met = evaluate(step.conditions, this.deps.weather());
+    if (met === "UNKNOWN") {
+      run.actionCount += 1;
+      run.snapshot.problems.push(routineProblem(top, path, "WEATHER_UNAVAILABLE"));
+      return "halted";
+    }
+    const note: RunNote = { step: top, routineName: routineNameOf(path), kind: "STOPPED", conditions: describeConditions(step.conditions), ranRoutineName: null };
+    if (step.kind === "CONTINUE_IF") {
+      if (met) return "done";
+      run.snapshot.notes.push(note);
+      return "halted";
+    }
+    note.kind = met ? "IF_MET" : "IF_NOT_MET";
+    run.snapshot.notes.push(note);
+    const branch = met ? step.thenRoutineId : step.elseRoutineId;
+    if (!branch) return "done";
+    return this.runRoutine(key, run, branch, runAs, path, depth, (name) => (note.ranRoutineName = name));
+  }
+
+  /**
+   * A "run routine" step at `path`: runs the routine inline, or records why it couldn't. A routine a condition halted
+   * counts as done, so the caller carries on. `onLoaded` gets the routine's name once it's loaded.
+   */
+  private async runRoutine(key: string, run: LiveRun, id: string, runAs: RunAs, path: PathEntry[], depth: number, onLoaded?: (name: string) => void): Promise<StepsResult> {
     const fail = (reason: Problem["reason"]): StepsResult => {
       run.actionCount += 1;
       run.snapshot.problems.push(routineProblem(run.snapshot.currentStep ?? 0, path, reason));
@@ -128,7 +162,9 @@ export class RoutineRunner {
     if (!this.live(key, run)) return "aborted";
     if (called === null) return fail("ROUTINE_REMOVED");
     if (called === "NO_ACCESS" || called === "UNREACHABLE") return fail(called);
-    return this.runSteps(key, run, called.steps, runAs, enterRoutine(path, called.name, called.steps.length), depth + 1);
+    onLoaded?.(called.name);
+    const result = await this.runSteps(key, run, called.steps, runAs, enterRoutine(path, called.name, called.steps.length), depth + 1);
+    return result === "halted" ? "done" : result;
   }
 
   /** Sends one action; never throws. Returns the problem, if any. */

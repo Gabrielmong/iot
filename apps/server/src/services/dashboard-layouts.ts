@@ -14,7 +14,8 @@ async function visibleIds(prisma: PrismaClient, user: Caller): Promise<Set<strin
   return new Set((await visibleDevices(prisma, user)).map((d) => d.id));
 }
 
-const onlyVisible = (items: LayoutItem[], ids: Set<string>) => items.filter((i) => ids.has(i.deviceId));
+/** Widgets are for everyone; devices only when the user can see them. */
+const onlyVisible = (items: LayoutItem[], ids: Set<string>) => items.filter((i) => i.deviceId === undefined || ids.has(i.deviceId));
 
 async function requireTab(prisma: PrismaClient, tab: string): Promise<void> {
   if (tab === ALL_TAB) return;

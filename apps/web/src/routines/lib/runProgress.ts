@@ -44,6 +44,10 @@ export function stepProgress(steps: readonly Step[], run: RoutineRun | null | un
     const label = `${prefix} · Setting ${plural(step.actions.length, 'device')}…`
     return { label, shortLabel: label, fraction: index / steps.length }
   }
+  if (step.kind === 'CONTINUE_IF' || step.kind === 'IF') {
+    const label = `${prefix} · Checking the weather…`
+    return { label, shortLabel: label, fraction: index / steps.length }
+  }
   const total = (step.waitMinutes ?? 0) * MINUTE_MS
   const left = run.waitUntil ? Math.max(0, new Date(run.waitUntil).getTime() - now.getTime()) : total
   const through = total > 0 ? Math.min(1, 1 - left / total) : 0

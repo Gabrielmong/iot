@@ -17,6 +17,7 @@ import { DashboardPage } from './pages/DashboardPage'
 import { DevicePage } from './pages/DevicePage'
 import { RoutineEditorPage } from './pages/RoutineEditorPage'
 import { RoutinesPage } from './pages/RoutinesPage'
+import { WeatherPage } from './pages/WeatherPage'
 
 export function AppRoutes() {
   return (
@@ -30,6 +31,7 @@ export function AppRoutes() {
             <Route path="/rooms/:roomId" element={<DashboardPage />} />
             <Route path="/devices/:id" element={<DevicePage />} />
             <Route path="/routines" element={<RoutinesPage />} />
+            <Route path="/weather" element={<WeatherPage />} />
             <Route element={<RequireNotGuest />}>
               <Route path="/cameras" element={<CamerasPage />} />
               <Route path="/routines/new" element={<RoutineEditorPage />} />

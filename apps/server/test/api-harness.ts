@@ -1,4 +1,6 @@
 import { createClient, type Client } from "graphql-ws";
+import { WeatherFetchError, type WeatherFetcher } from "../src/weather/types.js";
+import { WeatherService } from "../src/weather/service.js";
 import { vi } from "vitest";
 import WebSocket from "ws";
 import { hashPin } from "../src/auth/pin.js";
@@ -43,6 +45,8 @@ export interface HarnessOptions {
   tuyaPresence?: TuyaPresence;
   /** Default: no Tuya hosts on the LAN. */
   tuyaPortScan?: TuyaPortScan;
+  /** Default: Xweather is unreachable. */
+  weatherFetch?: WeatherFetcher;
   /** Default: the deploy helper is unavailable. */
   deployer?: DeployerClient;
   webDist?: string;
@@ -69,6 +73,7 @@ export class ApiHarness {
   /** The harness log (tests may replace its methods); `opts.log` overrides it. */
   readonly log: Pick<Console, "info" | "warn" | "error"> = { ...silentLog };
   routines!: RoutineService;
+  weather!: WeatherService;
   pcPower!: PcPowerRelay;
   /** Routine waits in progress; tests release them by hand. */
   private readonly waits: (() => void)[] = [];
@@ -88,6 +93,7 @@ export class ApiHarness {
       now: () => new Date(h.time),
       log,
       pcPower: h.pcPower,
+      weather: () => h.weather.facts(),
       delay: (_ms, signal) =>
         new Promise((resolve, reject) => {
           const release = () => resolve();
@@ -98,6 +104,9 @@ export class ApiHarness {
           });
         }),
     });
+    const weatherFetch = opts.weatherFetch ?? (async () => Promise.reject(new WeatherFetchError("no xweather in tests", false)));
+    h.weather = new WeatherService({ prisma: h.db, secretKey: KEY, fetch: weatherFetch, pubsub: h.pubsub, now: () => new Date(h.time), log, setTimer: () => ({ cancel: () => {} }) });
+    await h.weather.start();
     const deps: ServiceDeps = {
       prisma: h.db,
       manager: h.manager,
@@ -115,6 +124,8 @@ export class ApiHarness {
       rtspDescribe: opts.rtspDescribe ?? (async () => Promise.reject(new Error("no rtsp describe in tests"))),
       tuyaPresence: opts.tuyaPresence ?? (async () => false),
       tuyaPortScan: opts.tuyaPortScan ?? (async () => []),
+      weatherFetch,
+      weather: h.weather,
       tvPairings: new PendingPairings(() => new Date(h.time)),
       routines: h.routines,
       agents: h.agents,
@@ -145,6 +156,7 @@ export class ApiHarness {
   }
 
   async stop(): Promise<void> {
+    this.weather.stop();
     this.routines.stopAll();
     await this.routines.idle(); // a run's last update must not race the next test's TRUNCATE
     await Promise.all(this.clients.map((c) => c.dispose()));

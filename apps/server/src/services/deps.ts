@@ -13,6 +13,8 @@ import type { RoutineService } from "../routines/run-service.js";
 import type { AgentHub } from "../agent/hub.js";
 import type { PcPowerRelay } from "../agent/power.js";
 import type { StatsBroker } from "../agent/stats-broker.js";
+import type { WeatherFetcher } from "../weather/types.js";
+import type { WeatherService } from "../weather/service.js";
 
 export type Clock = () => Date;
 export type TuyaRegion = TuyaCloudOptions["region"];
@@ -65,6 +67,10 @@ export interface ServiceDeps extends ContextDeps {
   rtspDescribe: RtspDescribe;
   tuyaPresence: TuyaPresence;
   tuyaPortScan: TuyaPortScan;
+  /** Fetches weather from Xweather. Injected so tests never reach it. */
+  weatherFetch: WeatherFetcher;
+  /** The household weather: polling, latest reading, status. */
+  weather: WeatherService;
   /** TV pairings waiting for a code or an accept on the TV (2 minutes each). */
   tvPairings: PendingPairings;
   /** Running routines; saving or deleting a routine stops its current run. */

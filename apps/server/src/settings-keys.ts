@@ -20,6 +20,12 @@ export const SettingKey = {
   swannPassword: "swann.password",
   /** JSON probe result {template, channels} (encrypted for uniformity; not itself secret). */
   swannProbe: "swann.probe",
+  /** Xweather API client ID (encrypted). */
+  xweatherClientId: "xweather.clientId",
+  /** Xweather API client secret (encrypted). */
+  xweatherClientSecret: "xweather.clientSecret",
+  /** Google Maps JavaScript API key (encrypted; handed to admins to draw the map). */
+  googleMapsApiKey: "google.mapsApiKey",
   /** A camera's ONVIF login, JSON {username, password} (encrypted). Deleted with the device. */
   cameraOnvif: (deviceId: string) => `camera.${deviceId}.onvif`,
 } as const;

@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, it } from "vitest";
 import type { PrismaClient } from "../src/generated/prisma/client.js";
+import type { SunMinutes } from "../src/routines/schedule.js";
 import { RoutineScheduler } from "../src/routines/scheduler.js";
 import { closeDb, resetDb } from "./helpers.js";
 
@@ -13,7 +14,8 @@ async function routineAt(db: PrismaClient, name: string, minuteOfDay: number, da
   return r.id;
 }
 
-function setup(db: PrismaClient, start: Date) {
+function setup(db: PrismaClient, start: Date, sun: SunMinutes | null = null) {
+  const sunDays: Date[] = [];
   let now = start;
   const ran: string[] = [];
   const errors: unknown[] = [];
@@ -26,6 +28,10 @@ function setup(db: PrismaClient, start: Date) {
       ran.push(id);
     },
     now: () => now,
+    sunMinutes: (day) => {
+      sunDays.push(day);
+      return sun;
+    },
     log: { error: (...args: unknown[]) => void errors.push(args) },
     setTimer: (_fn, ms) => {
       timers.push(ms);
@@ -38,6 +44,7 @@ function setup(db: PrismaClient, start: Date) {
     ran,
     errors,
     timers,
+    sunDays,
     moveTo: (d: Date) => void (now = d),
     failFor: (id: string) => void (failFor = id),
   };
@@ -99,5 +106,24 @@ describe("RoutineScheduler", () => {
     await t.scheduler.tick();
     expect(t.ran).toEqual([good]);
     expect(t.errors).toHaveLength(1);
+  });
+
+  it("fires a sunset schedule at sunset plus its offset", async () => {
+    const db = await resetDb();
+    const r = await db.routine.create({ data: { name: "Dusk", scope: "SHARED", steps: [], schedules: { create: [{ minuteOfDay: 0, days: [1], anchor: "SUNSET", offsetMinutes: -30 }] } } });
+    const t = setup(db, at(17, 14, 59), { sunrise: 330, sunset: 1065 });
+    t.moveTo(at(17, 15, 0));
+    await t.scheduler.tick();
+    expect(t.ran).toEqual([r.id]);
+    expect(t.sunDays[0]).toEqual(new Date(2026, 10, 9));
+  });
+
+  it("never fires a sun schedule without sun times", async () => {
+    const db = await resetDb();
+    await db.routine.create({ data: { name: "Dusk", scope: "SHARED", steps: [], schedules: { create: [{ minuteOfDay: 0, days: [1], anchor: "SUNSET", offsetMinutes: 0 }] } } });
+    const t = setup(db, at(0, 0, 0), null);
+    t.moveTo(at(23, 59, 59));
+    await t.scheduler.tick();
+    expect(t.ran).toEqual([]);
   });
 });

@@ -7,6 +7,7 @@ export const ROUTINE_RUN_FIELDS = graphql(`
     endedAt
     problems { step deviceId deviceName reason routineName }
     hiddenProblems
+    notes { step routineName kind conditions ranRoutineName }
     currentStep
     currentPath { routineName step stepCount }
     waitUntil
@@ -23,8 +24,8 @@ export const ROUTINE_FIELDS = graphql(`
     audience
     room { id name }
     owner { id name role }
-    steps { kind waitMinutes routineId routineName actions { deviceId deviceExists on brightness color { r g b } colorTempK pcPower } }
-    schedules { time days enabled }
+    steps { kind waitMinutes routineId routineName conditions { metric op value } thenRoutineId thenRoutineName elseRoutineId elseRoutineName actions { deviceId deviceExists on brightness color { r g b } colorTempK pcPower } }
+    schedules { time anchor offsetMinutes days enabled }
     lastRun { ...RoutineRunFields }
   }
 `)

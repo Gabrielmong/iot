@@ -1,14 +1,30 @@
 import { badInput } from "../api-errors.js";
+import { parseConditions, type Condition, type ConditionInput } from "./conditions.js";
 
 export type Rgb = { r: number; g: number; b: number };
 /** A PC power action a routine may take (restart is left to people). */
 export type RoutinePcPower = "SLEEP" | "SHUTDOWN";
 /** What one device is set to. An absent `on` leaves power as it is; `pcPower` (a PC with an agent) stands alone. */
 export type DeviceAction = { deviceId: string; on?: boolean; brightness?: number; color?: Rgb; colorTempK?: number; pcPower?: RoutinePcPower };
-export type RoutineStep = { kind: "SET"; actions: DeviceAction[] } | { kind: "WAIT"; minutes: number } | { kind: "ROUTINE"; routineId: string };
+export type RoutineStep =
+  | { kind: "SET"; actions: DeviceAction[] }
+  | { kind: "WAIT"; minutes: number }
+  | { kind: "ROUTINE"; routineId: string }
+  /** Stops this routine (not a failure) unless every condition holds. */
+  | { kind: "CONTINUE_IF"; conditions: Condition[] }
+  /** Runs thenRoutineId when every condition holds, else elseRoutineId (if any), then carries on. */
+  | { kind: "IF"; conditions: Condition[]; thenRoutineId: string; elseRoutineId: string | null };
 
 export type ActionInput = { deviceId: string; on?: boolean | null; brightness?: number | null; color?: Rgb | null; colorTempK?: number | null; pcPower?: string | null };
-export type StepInput = { kind: "SET" | "WAIT" | "ROUTINE"; waitMinutes?: number | null; actions?: ActionInput[] | null; routineId?: string | null };
+export type StepInput = {
+  kind: "SET" | "WAIT" | "ROUTINE" | "CONTINUE_IF" | "IF";
+  waitMinutes?: number | null;
+  actions?: ActionInput[] | null;
+  routineId?: string | null;
+  conditions?: ConditionInput[] | null;
+  thenRoutineId?: string | null;
+  elseRoutineId?: string | null;
+};
 
 export const LIMITS = { maxSteps: 20, maxDevicesPerStep: 50, minWait: 1, maxWait: 720, maxNesting: 3 } as const;
 
@@ -18,7 +34,7 @@ const isInt = (n: number, min: number, max: number) => Number.isInteger(n) && n 
 export function parseSteps(input: StepInput[]): RoutineStep[] {
   if (input.length > LIMITS.maxSteps) throw badInput(`A routine can have at most ${LIMITS.maxSteps} steps`);
   const steps = input.map(parseStep);
-  if (!steps.some((s) => (s.kind === "SET" && s.actions.length > 0) || s.kind === "ROUTINE")) throw badInput("Add a device or a routine");
+  if (!steps.some((s) => (s.kind === "SET" && s.actions.length > 0) || s.kind === "ROUTINE" || s.kind === "IF")) throw badInput("Add a device or a routine");
   return steps;
 }
 
@@ -31,6 +47,11 @@ function parseStep(input: StepInput): RoutineStep {
   if (input.kind === "ROUTINE") {
     if (!input.routineId) throw badInput("Pick a routine to run");
     return { kind: "ROUTINE", routineId: input.routineId };
+  }
+  if (input.kind === "CONTINUE_IF") return { kind: "CONTINUE_IF", conditions: parseConditions(input.conditions ?? []) };
+  if (input.kind === "IF") {
+    if (!input.thenRoutineId) throw badInput("Pick a routine to run");
+    return { kind: "IF", conditions: parseConditions(input.conditions ?? []), thenRoutineId: input.thenRoutineId, elseRoutineId: input.elseRoutineId ?? null };
   }
   const actions = (input.actions ?? []).map(parseAction);
   if (actions.length > LIMITS.maxDevicesPerStep) throw badInput(`A step can set at most ${LIMITS.maxDevicesPerStep} devices`);
@@ -75,5 +96,11 @@ export function stepDeviceIds(steps: RoutineStep[]): string[] {
 
 /** Every routine id the steps run, once each, in order. */
 export function stepRoutineIds(steps: RoutineStep[]): string[] {
-  return [...new Set(steps.flatMap((s) => (s.kind === "ROUTINE" ? [s.routineId] : [])))];
+  return [...new Set(steps.flatMap(calledBy))];
+}
+
+function calledBy(s: RoutineStep): string[] {
+  if (s.kind === "ROUTINE") return [s.routineId];
+  if (s.kind === "IF") return s.elseRoutineId ? [s.thenRoutineId, s.elseRoutineId] : [s.thenRoutineId];
+  return [];
 }
